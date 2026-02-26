@@ -6,6 +6,16 @@ readme = "README.md"
 authors = [
     { name = "hrodmn", email = "henry@developmentseed.org" }
 ]
+classifiers = [
+    "Intended Audience :: Developers",
+    "Intended Audience :: Information Technology",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+]
 requires-python = ">=3.11"
 dependencies = [
     "pyarrow>=23.0.0",
@@ -28,12 +38,18 @@ deploy = [
 ]
 dev = [
     "pytest>=9.0.2",
+    "pytest-cov>=7.0.0",
     "ruff>=0.15.2",
     "sqlalchemy>=2.0.46",
     "ty>=0.0.18",
 ]
 
 [tool.pytest.ini_options]
+addopts = [
+    "-v",
+    "--cov-config=pyproject.toml", 
+    "--cov=src"
+]
 filterwarnings = [
     "ignore::DeprecationWarning:pyiceberg.*",
     "ignore::pydantic.PydanticDeprecatedSince20",

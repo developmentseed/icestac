@@ -1,3 +1,4 @@
+import gc
 import tempfile
 from pathlib import Path
 from typing import Any
@@ -30,7 +31,10 @@ def test_catalog(temp_warehouse):
     # Create test namespace
     catalog.create_namespace("test_namespace")
 
-    return catalog
+    yield catalog
+
+    gc.collect()
+    catalog.close()
 
 
 @pytest.fixture
