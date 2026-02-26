@@ -37,7 +37,48 @@ ICESTAC_S3_PATH_STYLE_ACCESS=true
 docker compose up
 ```
 
-**Note:** [main.py](./main.py) currently uses an older API signature and needs to be updated to match the current `create_item_table` function signature.
+**Querying with DuckDB:**
+
+After ingesting items (e.g. via `uv run python main.py`), you can query the Iceberg tables using DuckDB's `iceberg` extension. Tables live under the `icestac` namespace, named by the sanitized collection ID.
+
+First, configure the extensions and MinIO credentials:
+
+```sql
+INSTALL iceberg; LOAD iceberg;
+INSTALL httpfs; LOAD httpfs;
+INSTALL spatial; LOAD spatial;
+
+CREATE OR REPLACE SECRET minio (
+    TYPE S3,
+    KEY_ID 'admin',
+    SECRET 'password',
+    ENDPOINT 'localhost:9000',
+    USE_SSL false,
+    URL_STYLE 'path'
+);
+```
+
+Query via the REST catalog:
+
+```sql
+ATTACH 'http://localhost:8181' AS catalog (
+    TYPE ICEBERG,
+    WAREHOUSE 's3://warehouse/'
+);
+
+SELECT id, datetime, collection, geometry
+FROM catalog.icestac.icesat2_boreal_v3_1_agb
+LIMIT 10;
+```
+
+Or scan the table directly from its S3 path (no catalog required):
+
+```sql
+SET unsafe_enable_version_guessing = true;
+DESCRIBE SELECT *
+FROM iceberg_scan('s3://warehouse/icestac/icesat2_boreal_v3_1_agb')
+LIMIT 10;
+```
 
 ## Current Implementation Status
 
@@ -213,4 +254,3 @@ infrastructure/
 5. **Batch size**: How many STAC items per SQS batch for optimal performance?
 6. **Error handling**: Retry strategy for failed items? DLQ processing?
 7. **S3 bucket structure**: How to organize Iceberg table data and metadata?
->>>>>>> a2b56ec (initial commit)

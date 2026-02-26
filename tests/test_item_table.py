@@ -3,6 +3,7 @@ from typing import Any
 import pyarrow
 import pytest
 from pyiceberg.catalog import Catalog
+from pyiceberg.exceptions import TableAlreadyExistsError
 from rustac import to_arrow
 
 from icestac.errors import InvalidCollectionIdError
@@ -39,6 +40,14 @@ def test_create_item_table(
     result = table.scan().to_arrow()
     assert len(result) == len(sample_stac_items)
     assert result.column("id").to_pylist() == [item["id"] for item in sample_stac_items]
+
+    with pytest.raises(TableAlreadyExistsError):
+        create_item_table(
+            arrow_schema=arrow_schema,
+            collection_id=sample_stac_items[0]["collection"],
+            catalog=test_catalog,
+            namespace=test_namespace,
+        )
 
 
 def test_create_item_table_bad_collection_id(

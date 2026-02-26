@@ -1,5 +1,6 @@
 from typing import Any
 
+import pytest
 from pyiceberg.catalog import Catalog
 
 from icestac.item_table import create_item_table
@@ -191,3 +192,28 @@ def test_load_items_single_item(
     result = table.scan().to_arrow()
     assert len(result) == 1
     assert result.column("id").to_pylist()[0] == sample_stac_item["id"]
+
+
+def test_load_items_different_schema(
+    test_catalog: Catalog,
+    test_namespace: str,
+    sample_stac_item: dict[str, Any],
+) -> None:
+
+    # Create the table
+    arrow_schema = get_schema_from_item(sample_stac_item)
+    table = create_item_table(
+        arrow_schema=arrow_schema,
+        collection_id=sample_stac_item["collection"],
+        catalog=test_catalog,
+        namespace=test_namespace,
+    )
+
+    # load an item
+    load_items([sample_stac_item], table)
+
+    # change the schema
+    item_new_schema = sample_stac_item.copy()
+    item_new_schema["properties"]["new_field"] = True
+    with pytest.raises(ValueError, match="Update the schema first"):
+        load_items([item_new_schema], table)

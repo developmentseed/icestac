@@ -157,9 +157,7 @@ class IcebergCatalogConfig(BaseSettings):
             properties["s3.path-style-access"] = str(self.s3_path_style_access).lower()
 
         # Include any extra fields from environment (for catalog-specific properties)
-        for key, value in (
-            self.model_extra.items() if hasattr(self, "model_extra") else []
-        ):
+        for key, value in self.model_extra.items() if self.model_extra else []:
             if value is not None:
                 properties[key] = str(value)
 

@@ -1,12 +1,12 @@
 [project]
 name = "icestac"
-version = "0.1.0"
-description = "Add your description here"
+version = "0.0.1"
+description = "Manage STAC metadata in Apache Iceberg"
 readme = "README.md"
 authors = [
-    { name = "hrodmn", email = "henry.rodman@gmail.com" }
+    { name = "hrodmn", email = "henry@developmentseed.org" }
 ]
-requires-python = ">=3.13"
+requires-python = ">=3.11"
 dependencies = [
     "pyarrow>=23.0.0",
     "pydantic-settings>=2.12.0",
@@ -28,7 +28,9 @@ deploy = [
 ]
 dev = [
     "pytest>=9.0.2",
+    "ruff>=0.15.2",
     "sqlalchemy>=2.0.46",
+    "ty>=0.0.18",
 ]
 
 [tool.pytest.ini_options]

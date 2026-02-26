@@ -18,6 +18,10 @@ async def run():
         collections="icesat2-boreal-v3.1-agb",
         max_items=5,
     )
+
+    for item in items:
+        item["collection"] = "icesat2_boreal_v3_1_agb"
+
     schema = get_schema_from_item(items[0])
     table = create_item_table(
         arrow_schema=schema,

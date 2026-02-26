@@ -1,7 +1,10 @@
 from typing import Any
 
 import pyarrow as pa
-from arro3.core import Schema
+from arro3.core import Schema as ArrowSchema
+from pyiceberg.io.pyarrow import _pyarrow_to_schema_without_ids
+from pyiceberg.schema import Schema as IcebergSchema
+from pyiceberg.types import NestedField
 from rustac import to_arrow
 from stac_pydantic.item import Item
 
@@ -10,7 +13,7 @@ class IcestacItem(Item):
     collection: str
 
 
-def get_schema_from_item(item: dict[str, Any]) -> Schema:
+def get_schema_from_item(item: dict[str, Any]) -> ArrowSchema:
     # validate stac item
     _ = IcestacItem(**item)
 
@@ -38,7 +41,7 @@ def get_required_fields() -> set[str]:
     return required_fields
 
 
-def enforce_required_fields(schema: Schema) -> Schema:
+def enforce_required_fields(schema: ArrowSchema) -> ArrowSchema:
     """
     Ensure required STAC fields are marked as non-nullable in the Arrow schema.
 
@@ -66,10 +69,10 @@ def enforce_required_fields(schema: Schema) -> Schema:
             # Keep original nullable setting
             new_fields.append(field)
 
-    return Schema.from_arrow(pa.schema(new_fields))
+    return ArrowSchema.from_arrow(pa.schema(new_fields))
 
 
-def validate_schema(schema: Schema) -> None:
+def validate_schema(schema: ArrowSchema) -> None:
     """
     Validate that an Arrow schema contains required STAC item fields.
 
@@ -91,3 +94,19 @@ def validate_schema(schema: Schema) -> None:
         raise ValueError(
             f"Arrow schema is missing required STAC fields: {sorted(missing_fields)}"
         )
+
+
+def convert_schema(schema: ArrowSchema) -> IcebergSchema:
+    """Convert the arrow schema to an iceberg schema with field ids
+
+    Necessary because built-in converter functions do not assign field ids.
+    """
+    _schema = _pyarrow_to_schema_without_ids(pa.schema(enforce_required_fields(schema)))
+
+    fields = []
+    for i, _field in enumerate(_schema.fields, start=1):
+        field_dict = _field.model_dump()
+        field_dict["id"] = i
+        fields.append(NestedField(**field_dict))
+
+    return IcebergSchema(*fields)

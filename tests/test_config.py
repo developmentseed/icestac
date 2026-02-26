@@ -27,7 +27,7 @@ class TestIcebergCatalogConfig:
         monkeypatch.setenv("ICESTAC_WAREHOUSE_PATH", str(warehouse_path))
 
         # Disable .env file reading to avoid pollution from project .env file
-        settings = IcebergCatalogConfig(_env_file=None)
+        settings = IcebergCatalogConfig(_env_file=None)  # ty: ignore[unknown-argument]
 
         # Verify defaults are applied
         assert settings.catalog_name == "default"
@@ -96,7 +96,7 @@ class TestIcebergCatalogConfig:
         monkeypatch.setenv("ICESTAC_WAREHOUSE_PATH", "/tmp/warehouse")
 
         with pytest.raises(ValidationError) as exc_info:
-            IcebergCatalogConfig(_env_file=None)
+            IcebergCatalogConfig(_env_file=None)  # ty: ignore[unknown-argument]
 
         assert "catalog_uri is required" in str(exc_info.value)
 
@@ -106,7 +106,7 @@ class TestIcebergCatalogConfig:
         monkeypatch.setenv("ICESTAC_CATALOG_URI", "sqlite:///catalog.db")
 
         with pytest.raises(ValidationError) as exc_info:
-            IcebergCatalogConfig(_env_file=None)
+            IcebergCatalogConfig(_env_file=None)  # ty: ignore[unknown-argument]
 
         assert "warehouse_path is required" in str(exc_info.value)
 
@@ -115,7 +115,7 @@ class TestIcebergCatalogConfig:
         monkeypatch.setenv("ICESTAC_CATALOG_TYPE", "rest")
 
         with pytest.raises(ValidationError) as exc_info:
-            IcebergCatalogConfig(_env_file=None)
+            IcebergCatalogConfig(_env_file=None)  # ty: ignore[unknown-argument]
 
         assert "catalog_uri is required" in str(exc_info.value)
 
