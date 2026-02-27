@@ -28,6 +28,11 @@ dependencies = [
 [project.scripts]
 icestac = "icestac:main"
 
+[project.optional-dependencies]
+glue = [
+    "pyiceberg[glue]>=0.10.0",
+]
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
@@ -35,6 +40,7 @@ build-backend = "hatchling.build"
 [dependency-groups]
 deploy = [
     "aws-cdk-lib>=2.236.0",
+    "constructs>=10.0.0",
 ]
 dev = [
     "pre-commit>=4.5.1",

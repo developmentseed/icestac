@@ -1,0 +1,20 @@
+{
+  "version": "48.0.0",
+  "files": {
+    "3d7c66ffd0802f4a9759f209f891bd40f8ef6a2aab3118b76cbfae5d630840c7": {
+      "displayName": "icestac-dev-stack Template",
+      "source": {
+        "path": "icestac-dev-stack.template.json",
+        "packaging": "file"
+      },
+      "destinations": {
+        "current_account-current_region-afed1ed1": {
+          "bucketName": "cdk-hnb659fds-assets-${AWS::AccountId}-${AWS::Region}",
+          "objectKey": "3d7c66ffd0802f4a9759f209f891bd40f8ef6a2aab3118b76cbfae5d630840c7.json",
+          "assumeRoleArn": "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/cdk-hnb659fds-file-publishing-role-${AWS::AccountId}-${AWS::Region}"
+        }
+      }
+    }
+  },
+  "dockerImages": {}
+}
