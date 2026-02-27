@@ -1,13 +1,15 @@
 import gc
 import tempfile
 from pathlib import Path
-from typing import Any
+from typing import Any, Generator
 
 import pyarrow
 import pytest
 from pyarrow import Table
-from pyiceberg.catalog.sql import SqlCatalog
 from rustac import to_arrow
+
+from icestac.catalog import IcestacCatalog
+from icestac.config import SqlCatalogConfig
 
 
 @pytest.fixture
@@ -18,29 +20,25 @@ def temp_warehouse():
 
 
 @pytest.fixture
-def test_catalog(temp_warehouse):
-    """Create an in-memory SQL catalog for testing."""
-    catalog = SqlCatalog(
-        "test_catalog",
-        **{
-            "uri": f"sqlite:///{temp_warehouse}/catalog.db",
-            "warehouse": f"file://{temp_warehouse}",
-        },
+def test_config(temp_warehouse: Path) -> SqlCatalogConfig:
+    return SqlCatalogConfig(
+        catalog_name="test_catalog",
+        catalog_uri=f"sqlite:///{temp_warehouse}/catalog.db",
+        warehouse_path=str(temp_warehouse),
     )
 
-    # Create test namespace
-    catalog.create_namespace("test_namespace")
+
+@pytest.fixture
+def test_catalog(
+    test_config: SqlCatalogConfig,
+) -> Generator[IcestacCatalog, None, None]:
+    """Create an in-memory SQL catalog for testing."""
+    catalog = IcestacCatalog.from_config(test_config)
 
     yield catalog
 
     gc.collect()
-    catalog.close()
-
-
-@pytest.fixture
-def test_namespace():
-    """Provide a test namespace name."""
-    return "test_namespace"
+    catalog.catalog.close()
 
 
 @pytest.fixture

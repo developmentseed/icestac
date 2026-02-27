@@ -1,26 +1,22 @@
 from typing import Any
 
 import pytest
-from pyiceberg.catalog import Catalog
 
-from icestac.item_table import create_item_table
+from icestac.catalog import IcestacCatalog
 from icestac.load import load_items
 from icestac.schema import get_schema_from_item
 
 
 def test_load_items_upsert_default(
-    test_catalog: Catalog,
-    test_namespace: str,
+    test_catalog: IcestacCatalog,
     sample_stac_items: list[dict[str, Any]],
 ) -> None:
     """Test loading items with default upsert method."""
     # Create the table
     arrow_schema = get_schema_from_item(sample_stac_items[0])
-    table = create_item_table(
+    table = test_catalog.create_item_table(
         arrow_schema=arrow_schema,
         collection_id=sample_stac_items[0]["collection"],
-        catalog=test_catalog,
-        namespace=test_namespace,
     )
 
     # Load items (default method is upsert)
@@ -35,18 +31,15 @@ def test_load_items_upsert_default(
 
 
 def test_load_items_upsert_explicit(
-    test_catalog: Catalog,
-    test_namespace: str,
+    test_catalog: IcestacCatalog,
     sample_stac_items: list[dict[str, Any]],
 ) -> None:
     """Test loading items with explicit upsert method."""
     # Create the table
     arrow_schema = get_schema_from_item(sample_stac_items[0])
-    table = create_item_table(
+    table = test_catalog.create_item_table(
         arrow_schema=arrow_schema,
         collection_id=sample_stac_items[0]["collection"],
-        catalog=test_catalog,
-        namespace=test_namespace,
     )
 
     # Load items with explicit upsert method
@@ -58,18 +51,15 @@ def test_load_items_upsert_explicit(
 
 
 def test_load_items_upsert_updates_existing(
-    test_catalog: Catalog,
-    test_namespace: str,
+    test_catalog: IcestacCatalog,
     sample_stac_items: list[dict[str, Any]],
 ) -> None:
     """Test that upsert updates existing records with same ID."""
     # Create the table
     arrow_schema = get_schema_from_item(sample_stac_items[0])
-    table = create_item_table(
+    table = test_catalog.create_item_table(
         arrow_schema=arrow_schema,
         collection_id=sample_stac_items[0]["collection"],
-        catalog=test_catalog,
-        namespace=test_namespace,
     )
 
     # Load initial items
@@ -96,18 +86,15 @@ def test_load_items_upsert_updates_existing(
 
 
 def test_load_items_append(
-    test_catalog: Catalog,
-    test_namespace: str,
+    test_catalog: IcestacCatalog,
     sample_stac_items: list[dict[str, Any]],
 ) -> None:
     """Test loading items with append method."""
     # Create the table
     arrow_schema = get_schema_from_item(sample_stac_items[0])
-    table = create_item_table(
+    table = test_catalog.create_item_table(
         arrow_schema=arrow_schema,
         collection_id=sample_stac_items[0]["collection"],
-        catalog=test_catalog,
-        namespace=test_namespace,
     )
 
     # Load items with append method
@@ -119,18 +106,15 @@ def test_load_items_append(
 
 
 def test_load_items_append_creates_duplicates(
-    test_catalog: Catalog,
-    test_namespace: str,
+    test_catalog: IcestacCatalog,
     sample_stac_items: list[dict[str, Any]],
 ) -> None:
     """Test that append creates duplicate records when IDs overlap."""
     # Create the table
     arrow_schema = get_schema_from_item(sample_stac_items[0])
-    table = create_item_table(
+    table = test_catalog.create_item_table(
         arrow_schema=arrow_schema,
         collection_id=sample_stac_items[0]["collection"],
-        catalog=test_catalog,
-        namespace=test_namespace,
     )
 
     # Load items twice with append
@@ -143,18 +127,15 @@ def test_load_items_append_creates_duplicates(
 
 
 def test_load_items_multiple_batches(
-    test_catalog: Catalog,
-    test_namespace: str,
+    test_catalog: IcestacCatalog,
     sample_stac_items: list[dict[str, Any]],
 ) -> None:
     """Test loading items in multiple batches with different methods."""
     # Create the table
     arrow_schema = get_schema_from_item(sample_stac_items[0])
-    table = create_item_table(
+    table = test_catalog.create_item_table(
         arrow_schema=arrow_schema,
         collection_id=sample_stac_items[0]["collection"],
-        catalog=test_catalog,
-        namespace=test_namespace,
     )
 
     # Load first batch
@@ -171,18 +152,15 @@ def test_load_items_multiple_batches(
 
 
 def test_load_items_single_item(
-    test_catalog: Catalog,
-    test_namespace: str,
+    test_catalog: IcestacCatalog,
     sample_stac_item: dict[str, Any],
 ) -> None:
     """Test loading a single item."""
     # Create the table
     arrow_schema = get_schema_from_item(sample_stac_item)
-    table = create_item_table(
+    table = test_catalog.create_item_table(
         arrow_schema=arrow_schema,
         collection_id=sample_stac_item["collection"],
-        catalog=test_catalog,
-        namespace=test_namespace,
     )
 
     # Load single item as a list
@@ -195,18 +173,15 @@ def test_load_items_single_item(
 
 
 def test_load_items_different_schema(
-    test_catalog: Catalog,
-    test_namespace: str,
+    test_catalog: IcestacCatalog,
     sample_stac_item: dict[str, Any],
 ) -> None:
 
     # Create the table
     arrow_schema = get_schema_from_item(sample_stac_item)
-    table = create_item_table(
+    table = test_catalog.create_item_table(
         arrow_schema=arrow_schema,
         collection_id=sample_stac_item["collection"],
-        catalog=test_catalog,
-        namespace=test_namespace,
     )
 
     # load an item
