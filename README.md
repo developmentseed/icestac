@@ -17,7 +17,7 @@ uv run pytest
 
 ### Local Instance
 
-**Environment Configuration** (`.env`):
+**Environment Configuration** (`.env-local`):
 ```bash
 # REST catalog endpoint
 ICESTAC_CATALOG_NAME=rest_catalog
