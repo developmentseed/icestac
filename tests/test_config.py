@@ -5,7 +5,12 @@ import os
 import pytest
 from pydantic import ValidationError
 
-from icestac.config import GlueCatalogConfig, RestCatalogConfig, SqlCatalogConfig
+from icestac.config import (
+    GlueCatalogConfig,
+    HiveCatalogConfig,
+    RestCatalogConfig,
+    SqlCatalogConfig,
+)
 
 
 class TestIcestacCatalogConfig:
@@ -142,3 +147,78 @@ class TestIcestacCatalogConfig:
 
         properties = settings.get_catalog_properties()
         assert properties["echo"] == "true"
+
+    def test_s3_endpoint_properties(self, monkeypatch):
+        """Test that S3 endpoint and path-style access are included in properties."""
+        monkeypatch.setenv("ICESTAC_CATALOG_URI", "sqlite:///catalog.db")
+        monkeypatch.setenv("ICESTAC_WAREHOUSE_PATH", "/tmp/warehouse")
+        monkeypatch.setenv("ICESTAC_S3__ENDPOINT", "http://minio:9000")
+        monkeypatch.setenv("ICESTAC_S3__PATH_STYLE_ACCESS", "true")
+
+        settings = SqlCatalogConfig.model_validate({})
+        properties = settings.get_catalog_properties()
+
+        assert properties["s3.endpoint"] == "http://minio:9000"
+        assert properties["s3.path-style-access"] == "true"
+
+    def test_s3_credentials_properties(self, monkeypatch):
+        """Test that S3 access key and secret are included in properties."""
+        monkeypatch.setenv("ICESTAC_CATALOG_URI", "sqlite:///catalog.db")
+        monkeypatch.setenv("ICESTAC_WAREHOUSE_PATH", "/tmp/warehouse")
+        monkeypatch.setenv("ICESTAC_S3__ACCESS_KEY_ID", "mykey")
+        monkeypatch.setenv("ICESTAC_S3__SECRET_ACCESS_KEY", "mysecret")
+
+        settings = SqlCatalogConfig.model_validate({})
+        properties = settings.get_catalog_properties()
+
+        assert properties["s3.access-key-id"] == "mykey"
+        assert properties["s3.secret-access-key"] == "mysecret"
+
+    def test_extra_properties_passthrough(self, monkeypatch):
+        """Test that extra fields passed to the model are included in catalog properties."""
+        monkeypatch.setenv("ICESTAC_CATALOG_URI", "sqlite:///catalog.db")
+        monkeypatch.setenv("ICESTAC_WAREHOUSE_PATH", "/tmp/warehouse")
+
+        settings = SqlCatalogConfig.model_validate({"some_extra_key": "extra_value"})
+        properties = settings.get_catalog_properties()
+
+        assert properties["some_extra_key"] == "extra_value"
+
+    def test_rest_catalog_with_warehouse_and_credential(self, monkeypatch):
+        """Test REST catalog with optional warehouse path and credential."""
+        monkeypatch.setenv("ICESTAC_CATALOG_URI", "https://rest.example.com")
+        monkeypatch.setenv("ICESTAC_WAREHOUSE_PATH", "s3://bucket/warehouse")
+        monkeypatch.setenv("ICESTAC_REST__CREDENTIAL", "client_id:client_secret")
+
+        settings = RestCatalogConfig.model_validate({})
+        properties = settings.get_catalog_properties()
+
+        assert properties["warehouse"] == "s3://bucket/warehouse"
+        assert properties["credential"] == "client_id:client_secret"
+
+    def test_glue_catalog_with_uri(self, monkeypatch):
+        """Test AWS Glue catalog with optional catalog URI."""
+        monkeypatch.setenv("ICESTAC_CATALOG_URI", "glue://my-catalog")
+        monkeypatch.setenv("ICESTAC_WAREHOUSE_PATH", "s3://bucket/warehouse")
+
+        settings = GlueCatalogConfig.model_validate({})
+        properties = settings.get_catalog_properties()
+
+        assert properties["uri"] == "glue://my-catalog"
+        assert properties["warehouse"] == "s3://bucket/warehouse"
+
+    def test_hive_catalog_properties(self, monkeypatch):
+        """Test Hive catalog configuration and properties."""
+        monkeypatch.setenv("ICESTAC_CATALOG_URI", "thrift://hive-metastore:9083")
+        monkeypatch.setenv("ICESTAC_WAREHOUSE_PATH", "s3://bucket/warehouse")
+
+        settings = HiveCatalogConfig.model_validate({})
+
+        assert settings.catalog_type == "hive"
+        assert settings.catalog_uri == "thrift://hive-metastore:9083"
+        assert settings.warehouse_path == "s3://bucket/warehouse"
+
+        properties = settings.get_catalog_properties()
+        assert properties["type"] == "hive"
+        assert properties["uri"] == "thrift://hive-metastore:9083"
+        assert properties["warehouse"] == "s3://bucket/warehouse"

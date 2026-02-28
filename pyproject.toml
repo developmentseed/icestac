@@ -49,7 +49,8 @@ dev = [
 addopts = [
     "-v",
     "--cov-config=pyproject.toml", 
-    "--cov=src"
+    "--cov=src",
+    "--cov-report=term-missing"
 ]
 filterwarnings = [
     "ignore::DeprecationWarning:pyiceberg.*",
