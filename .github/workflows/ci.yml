@@ -30,7 +30,7 @@ jobs:
         run: uv run pre-commit run --all-files
 
       - name: Run tests
-        run: uv run pytest --cov-report=xml
+        run: uv run pytest --cov-branch --cov-report=xml
 
       - name: Upload coverage to Codecov
         if: matrix.python-version == '3.14'
