@@ -8,8 +8,9 @@ import pytest
 from pyarrow import Table
 from rustac import to_arrow
 
+from pyiceberg.catalog import load_catalog
+
 from icestac.catalog import IcestacCatalog
-from icestac.config import SqlCatalogConfig
 
 
 @pytest.fixture
@@ -20,25 +21,22 @@ def temp_warehouse():
 
 
 @pytest.fixture
-def test_config(temp_warehouse: Path) -> SqlCatalogConfig:
-    return SqlCatalogConfig(
-        catalog_name="test_catalog",
-        catalog_uri=f"sqlite:///{temp_warehouse}/catalog.db",
-        warehouse_path=str(temp_warehouse),
+def test_catalog(temp_warehouse: Path) -> Generator[IcestacCatalog, None, None]:
+    """Create a temporary SQL catalog for testing."""
+    catalog = load_catalog(
+        "test_catalog",
+        **{
+            "type": "sql",
+            "uri": f"sqlite:///{temp_warehouse}/catalog.db",
+            "warehouse": str(temp_warehouse),
+        },
     )
+    icestac_catalog = IcestacCatalog(catalog=catalog)
 
-
-@pytest.fixture
-def test_catalog(
-    test_config: SqlCatalogConfig,
-) -> Generator[IcestacCatalog, None, None]:
-    """Create an in-memory SQL catalog for testing."""
-    catalog = IcestacCatalog.from_config(test_config)
-
-    yield catalog
+    yield icestac_catalog
 
     gc.collect()
-    catalog.catalog.close()
+    icestac_catalog.catalog.close()
 
 
 @pytest.fixture

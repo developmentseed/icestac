@@ -17,20 +17,31 @@ uv run pytest
 
 ### Local Instance
 
-**Environment Configuration** (`.env-local`):
-```bash
-# REST catalog endpoint
-ICESTAC_CATALOG_NAME=rest_catalog
-ICESTAC_CATALOG_TYPE=rest
-ICESTAC_CATALOG_URI=http://localhost:8181
-ICESTAC_WAREHOUSE_PATH=s3://warehouse/
+**Catalog Configuration** (`.pyiceberg.yaml`):
 
-# S3/MinIO storage for PyIceberg data file I/O
-ICESTAC_S3_ENDPOINT=http://localhost:9000
-ICESTAC_S3_ACCESS_KEY_ID=admin
-ICESTAC_S3_SECRET_ACCESS_KEY=password
-ICESTAC_S3_PATH_STYLE_ACCESS=true
+icestac delegates catalog configuration to PyIceberg. Create a `.pyiceberg.yaml` in your working directory (or `~/.pyiceberg.yaml` for a user-wide default):
+
+```yaml
+catalog:
+  default:
+    type: rest
+    uri: http://localhost:8181
+    warehouse: s3://warehouse/
+    s3.endpoint: http://localhost:9000
+    s3.access-key-id: admin
+    s3.secret-access-key: password
+    s3.path-style-access: "true"
 ```
+
+Alternatively, configure via environment variables using PyIceberg's `PYICEBERG_CATALOG__<name>__<key>` prefix:
+
+```bash
+PYICEBERG_CATALOG__DEFAULT__TYPE=rest
+PYICEBERG_CATALOG__DEFAULT__URI=http://localhost:8181
+PYICEBERG_CATALOG__DEFAULT__WAREHOUSE=s3://warehouse/
+```
+
+See the [PyIceberg configuration docs](https://py.iceberg.apache.org/configuration/) for the full list of catalog and S3 properties.
 
 **Starting the local environment:**
 ```bash
@@ -117,22 +128,6 @@ Schema validation and enforcement:
 **`validate_schema(schema: Schema) -> None`**
 - Validates Arrow schema contains all required STAC fields
 
-#### Config Module (`src/icestac/config.py`) - ✓ IMPLEMENTED
-
-**`IcebergCatalogConfig`** - Pydantic settings for catalog configuration
-- Loads from environment variables with `ICESTAC_` prefix
-- Supports catalog types: `rest`, `glue`, `hive`, `sql`
-- Environment variables:
-  - Catalog: `CATALOG_NAME`, `CATALOG_TYPE`, `CATALOG_URI`, `WAREHOUSE_PATH`, `AWS_REGION`
-  - REST auth: `REST_TOKEN`, `REST_CREDENTIAL`
-  - SQL: `SQL_ECHO`
-  - S3/MinIO: `S3_ENDPOINT`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_PATH_STYLE_ACCESS`
-
-**`get_catalog_properties() -> dict[str, str]`**
-- Generates PyIceberg catalog properties from settings
-
-**`load_catalog() -> Catalog`**
-- Factory method that creates PyIceberg Catalog instance
 
 #### Lambda Handler Module (`src/icestac/lambda_handler.py`) - NOT IMPLEMENTED
 
@@ -144,7 +139,6 @@ Placeholder for AWS Lambda handler.
 
 - **`tests/conftest.py`**: Pytest fixtures for test catalog, sample STAC items, and Arrow tables
 - **`tests/test_item_table.py`**: Unit tests for `sanitize_collection_id` and `create_item_table`
-- **`tests/test_config.py`**: Unit tests for catalog configuration and settings validation
 - **`tests/test_schema.py`**: Unit tests for schema validation and enforcement
 
 ### Dependencies
@@ -154,7 +148,6 @@ Placeholder for AWS Lambda handler.
 - `pyiceberg[pyiceberg-core]>=0.10.0` - Iceberg table management
 - `rustac[arrow]>=0.9.3` - STAC to Arrow conversion with arro3 schemas
 - `stac-pydantic>=3.4.0` - STAC item validation
-- `pydantic-settings>=2.12.0` - Environment-based configuration
 
 **Development** (dev dependency group):
 - `pytest>=9.0.2` - Testing framework
@@ -241,7 +234,7 @@ infrastructure/
 2. **Partitioning**: Monthly partitioning by datetime field (hardcoded, to be made configurable)
 3. **Schema conversion**: Manual field ID assignment to avoid pyiceberg limitations
 4. **Schema validation**: Required STAC fields marked as non-nullable using Pydantic models
-5. **Configuration**: Environment variables with `ICESTAC_` prefix using Pydantic settings
+5. **Configuration**: Delegated to PyIceberg via `.pyiceberg.yaml` or `PYICEBERG_CATALOG__` environment variables
 6. **Testing catalog**: In-memory SQL catalog with SQLite for unit tests
 7. **STAC to Arrow conversion**: Use rustac library with arro3 schemas
 

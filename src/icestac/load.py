@@ -4,7 +4,7 @@ import pyarrow
 from pyiceberg.table import Table
 from rustac import to_arrow
 
-from icestac.schema import enforce_required_fields
+from icestac.schema import IcestacItem
 
 Method = Literal["append", "upsert"]
 
@@ -15,7 +15,7 @@ def load_items(
     method: Method = "upsert",
 ) -> None:
     arrow_data = to_arrow(items)
-    enforced_schema = enforce_required_fields(arrow_data.schema)
+    enforced_schema = IcestacItem.enforce_required_fields(arrow_data.schema)
     arrow_table = pyarrow.table(arrow_data).cast(pyarrow.schema(enforced_schema))
 
     if method == "upsert":

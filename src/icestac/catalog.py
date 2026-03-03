@@ -1,23 +1,25 @@
+from __future__ import annotations
+
 from dataclasses import dataclass
 from typing import Any
 
 from arro3.core import Schema as ArrowSchema
-from pyiceberg.catalog import Catalog, load_catalog
+from pyiceberg.catalog import Catalog
 from pyiceberg.partitioning import PartitionField, PartitionSpec
 from pyiceberg.table import Table
 from pyiceberg.transforms import MonthTransform
 
-from icestac.config import IcestacCatalogConfig
+from icestac.constants import DEFAULT_NAMESPACE
 from icestac.errors import InvalidCollectionIdError
 from icestac.load import Method, load_items
-from icestac.schema import convert_schema, validate_schema
+from icestac.schema import IcestacItem, convert_schema
 
 
 def validate_collection_id(collection_id: str) -> None:
     """Ensure collection id is valid for icestac schema"""
 
     if "." in collection_id:
-        raise InvalidCollectionIdError
+        raise InvalidCollectionIdError(collection_id)
 
 
 @dataclass
@@ -25,19 +27,10 @@ class IcestacCatalog:
     """Icestac client class for pyiceberg Catalog"""
 
     catalog: Catalog
-    namespace: str
-
-    def __getattr__(self, name: str) -> Any:
-        return getattr(self.catalog, name)
+    namespace: str = DEFAULT_NAMESPACE
 
     def __post_init__(self) -> None:
-        self.create_namespace_if_not_exists(self.namespace)
-
-    @classmethod
-    def from_config(cls, config: IcestacCatalogConfig) -> "IcestacCatalog":
-        catalog = load_catalog(config.catalog_name, **config.get_catalog_properties())
-
-        return cls(catalog=catalog, namespace=config.namespace)
+        self.catalog.create_namespace_if_not_exists(self.namespace)
 
     def create_item_table(
         self,
@@ -61,13 +54,13 @@ class IcestacCatalog:
 
         """
         validate_collection_id(collection_id)
-        validate_schema(arrow_schema)
+        IcestacItem.validate_schema(arrow_schema)
 
         # TODO: check if collection record is present in collections table
 
         iceberg_schema = convert_schema(arrow_schema)
 
-        return self.create_table(
+        return self.catalog.create_table(
             identifier=f"{self.namespace}.{collection_id}",
             schema=iceberg_schema,
             partition_spec=PartitionSpec(
@@ -81,11 +74,13 @@ class IcestacCatalog:
             ),
         )
 
-    def load_item_table(self, collection_id: str) -> Table:
-        """Load the item table for a collection"""
-        return self.load_table(identifier=f"{self.namespace}.{collection_id}")
-
     def load_items(
         self, collection_id: str, items: list[dict[str, Any]], method: Method = "upsert"
     ) -> None:
-        load_items(items, table=self.load_item_table(collection_id), method=method)
+        load_items(
+            items,
+            table=self.catalog.load_table(
+                identifier=f"{self.namespace}.{collection_id}"
+            ),
+            method=method,
+        )

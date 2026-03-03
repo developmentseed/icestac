@@ -1,15 +1,14 @@
 import asyncio
 
 import rustac
+from pyiceberg.catalog import load_catalog
 
 from icestac.catalog import IcestacCatalog
-from icestac.config import IcestacCatalogConfig
 from icestac.schema import get_schema_from_item
 
 
 async def run():
-    config = IcestacCatalogConfig.model_validate({})
-    catalog = IcestacCatalog.from_config(config)
+    catalog = IcestacCatalog(catalog=load_catalog())
 
     items = await rustac.search(
         "https://stac.maap-project.org",

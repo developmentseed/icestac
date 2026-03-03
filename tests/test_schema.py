@@ -5,7 +5,7 @@ import pytest
 from arro3.core import Schema
 from pydantic import ValidationError
 
-from icestac.schema import get_schema_from_item, validate_schema
+from icestac.schema import IcestacItem, get_schema_from_item
 
 
 def test_get_schema_from_item(sample_stac_item: dict[str, Any]) -> None:
@@ -39,7 +39,7 @@ def test_validate_schema_valid(sample_stac_item: dict[str, Any]) -> None:
     schema = get_schema_from_item(sample_stac_item)
 
     # Should not raise
-    validate_schema(schema)
+    IcestacItem.validate_schema(schema)
 
 
 def test_validate_schema_missing_required_field() -> None:
@@ -55,7 +55,7 @@ def test_validate_schema_missing_required_field() -> None:
     )
 
     with pytest.raises(ValueError, match="missing required STAC fields.*'id'"):
-        validate_schema(schema)
+        IcestacItem.validate_schema(schema)
 
 
 def test_validate_schema_missing_datetime() -> None:
@@ -75,4 +75,4 @@ def test_validate_schema_missing_datetime() -> None:
     )
 
     with pytest.raises(ValueError, match="missing required STAC fields.*'datetime'"):
-        validate_schema(schema)
+        IcestacItem.validate_schema(schema)

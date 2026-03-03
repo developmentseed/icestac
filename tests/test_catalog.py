@@ -7,7 +7,7 @@ from rustac import to_arrow
 
 from icestac.catalog import IcestacCatalog
 from icestac.errors import InvalidCollectionIdError
-from icestac.schema import enforce_required_fields, get_schema_from_item
+from icestac.schema import IcestacItem, get_schema_from_item
 
 
 def test_create_item_table(
@@ -24,7 +24,7 @@ def test_create_item_table(
 
     # Ensure data has required fields marked as non-nullable to match table schema
     arrow_data = to_arrow(sample_stac_items)
-    enforced_schema = enforce_required_fields(arrow_data.schema)
+    enforced_schema = IcestacItem.enforce_required_fields(arrow_data.schema)
     arrow_table = pyarrow.table(arrow_data).cast(pyarrow.schema(enforced_schema))
 
     table.upsert(
