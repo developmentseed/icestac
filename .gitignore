@@ -10,3 +10,7 @@ wheels/
 .venv
 
 minio-data/
+
+# dev docs
+dev-docs/plans/
+dev-docs/brainstorms/

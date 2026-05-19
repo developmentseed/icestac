@@ -5,12 +5,12 @@ import pytest
 from arro3.core import Schema
 from pydantic import ValidationError
 
-from icestac.schema import IcestacItem, get_schema_from_item
+from icestac.schema import IcestacItem, get_schema_from_items
 
 
-def test_get_schema_from_item(sample_stac_item: dict[str, Any]) -> None:
+def test_get_schema_from_items(sample_stac_item: dict[str, Any]) -> None:
     """Test that we can extract an Arrow schema from a STAC item."""
-    schema = get_schema_from_item(sample_stac_item)
+    schema = get_schema_from_items(sample_stac_item)
 
     assert isinstance(schema, Schema)
     assert "id" in schema.names
@@ -18,25 +18,25 @@ def test_get_schema_from_item(sample_stac_item: dict[str, Any]) -> None:
     assert "collection" in schema.names
 
 
-def test_get_schema_from_item_validates(sample_stac_item: dict[str, Any]) -> None:
-    """Test that get_schema_from_item validates the STAC item."""
+def test_get_schema_from_items_validates(sample_stac_item: dict[str, Any]) -> None:
+    """Test that get_schema_from_items validates the STAC item."""
     invalid_item = {"not": "a stac item"}
 
     with pytest.raises(ValidationError):
-        get_schema_from_item(invalid_item)
+        get_schema_from_items(invalid_item)
 
 
-def test_get_schema_from_item_no_collection(sample_stac_item: dict[str, Any]) -> None:
+def test_get_schema_from_items_no_collection(sample_stac_item: dict[str, Any]) -> None:
     """Test that missing collection field raises ValueError."""
     _ = sample_stac_item.pop("collection")
 
     with pytest.raises(ValidationError):
-        _ = get_schema_from_item(sample_stac_item)
+        _ = get_schema_from_items(sample_stac_item)
 
 
 def test_validate_schema_valid(sample_stac_item: dict[str, Any]) -> None:
     """Test that a valid STAC schema passes validation."""
-    schema = get_schema_from_item(sample_stac_item)
+    schema = get_schema_from_items(sample_stac_item)
 
     # Should not raise
     IcestacItem.validate_schema(schema)

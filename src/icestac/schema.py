@@ -1,13 +1,16 @@
 from typing import Any
 
 import pyarrow as pa
+import rustac
 from arro3.core import Field
 from arro3.core import Schema as ArrowSchema
+from arro3.core import Table as ArrowTable
 from pyiceberg.io.pyarrow import _pyarrow_to_schema_without_ids
 from pyiceberg.schema import Schema as IcebergSchema
 from pyiceberg.types import NestedField
-from rustac import to_arrow
 from stac_pydantic.item import Item
+
+ItemsInput = ArrowTable | list[dict[str, Any]] | dict[str, Any]
 
 
 class IcestacItem(Item):
@@ -89,9 +92,32 @@ class IcestacItem(Item):
             )
 
 
-def get_schema_from_item(item: dict[str, Any]) -> ArrowSchema:
+def _first_item_from_arrow(items: ArrowTable) -> dict[str, Any]:
+    table = pa.table(items)
 
-    return IcestacItem(**item).enforce_required_fields(to_arrow([item]).schema)
+    if len(table) == 0:
+        raise ValueError("Cannot validate an empty Arrow table")
+
+    feature_collection = rustac.from_arrow(table.slice(0, 1))
+
+    return feature_collection["features"][0]
+
+
+def get_schema_from_items(items: ItemsInput) -> ArrowSchema:
+    if isinstance(items, dict):
+        item = items
+        items = [items]
+    elif isinstance(items, list):
+        item = items[0]
+    elif isinstance(items, ArrowTable):
+        item = _first_item_from_arrow(items)
+
+    IcestacItem.model_validate(item)
+
+    if not isinstance(items, ArrowTable):
+        items = rustac.to_arrow(items)
+
+    return IcestacItem.enforce_required_fields(items.schema)
 
 
 def convert_schema(schema: ArrowSchema) -> IcebergSchema:

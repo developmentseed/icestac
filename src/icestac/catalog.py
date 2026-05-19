@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
 
 from arro3.core import Schema as ArrowSchema
 from pyiceberg.catalog import Catalog
@@ -12,7 +11,7 @@ from pyiceberg.transforms import MonthTransform
 from icestac.constants import DEFAULT_NAMESPACE
 from icestac.errors import InvalidCollectionIdError
 from icestac.load import Method, load_items
-from icestac.schema import IcestacItem, convert_schema
+from icestac.schema import IcestacItem, ItemsInput, convert_schema
 
 
 def validate_collection_id(collection_id: str) -> None:
@@ -75,7 +74,7 @@ class IcestacCatalog:
         )
 
     def load_items(
-        self, collection_id: str, items: list[dict[str, Any]], method: Method = "upsert"
+        self, collection_id: str, items: ItemsInput, method: Method = "upsert"
     ) -> None:
         load_items(
             items,

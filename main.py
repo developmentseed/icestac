@@ -5,7 +5,7 @@ import rustac
 from pyiceberg.catalog import load_catalog
 
 from icestac.catalog import IcestacCatalog
-from icestac.schema import get_schema_from_item
+from icestac.schema import get_schema_from_items
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +26,7 @@ async def run():
     for item in items:
         item["collection"] = collection_id
 
-    schema = get_schema_from_item(items[0])
+    schema = get_schema_from_items(items)
     catalog.create_item_table(arrow_schema=schema, collection_id=collection_id)
 
     batches = [items[i : i + BATCH_SIZE] for i in range(0, len(items), BATCH_SIZE)]

@@ -44,6 +44,9 @@ dev = [
     "ty>=0.0.18",
 ]
 
+[tool.ty.rules]
+all = "error"
+
 [tool.pytest.ini_options]
 addopts = [
     "-v",
