@@ -1,6 +1,6 @@
 [project]
 name = "icestac"
-version = "0.0.1"
+version = "0.0.0"
 description = "Manage STAC metadata in Apache Iceberg"
 readme = "README.md"
 authors = [

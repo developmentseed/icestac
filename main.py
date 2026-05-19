@@ -3,6 +3,7 @@ import logging
 
 import rustac
 from pyiceberg.catalog import load_catalog
+from pyiceberg.exceptions import TableAlreadyExistsError
 
 from icestac.catalog import IcestacCatalog
 from icestac.schema import get_schema_from_items
@@ -27,7 +28,11 @@ async def run():
         item["collection"] = collection_id
 
     schema = get_schema_from_items(items)
-    catalog.create_item_table(arrow_schema=schema, collection_id=collection_id)
+
+    try:
+        catalog.create_item_table(arrow_schema=schema, collection_id=collection_id)
+    except TableAlreadyExistsError:
+        logger.warning(f"{collection_id} table already exists... skipping")
 
     batches = [items[i : i + BATCH_SIZE] for i in range(0, len(items), BATCH_SIZE)]
     for i, batch in enumerate(batches, start=1):
