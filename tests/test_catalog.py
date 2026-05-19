@@ -25,7 +25,9 @@ def test_create_item_table(
     assert table.schema().find_field("datetime")
 
     # Ensure data has required fields marked as non-nullable to match table schema
-    arrow_data = to_arrow(expected_items) if not isinstance(items, ArrowTable) else items
+    arrow_data = (
+        to_arrow(expected_items) if not isinstance(items, ArrowTable) else items
+    )
     enforced_schema = IcestacItem.enforce_required_fields(arrow_data.schema)
     arrow_table = pyarrow.table(arrow_data).cast(pyarrow.schema(enforced_schema))
 

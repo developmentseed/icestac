@@ -1,4 +1,4 @@
-from typing import Literal
+from typing import Any, Literal, cast
 
 import pyarrow
 import rustac
@@ -16,7 +16,8 @@ def load_items(
     method: Method = "upsert",
 ) -> None:
     if isinstance(items, dict):
-        items = [items]
+        item = cast(dict[str, Any], items)
+        items = [item]
 
     if not isinstance(items, ArrowTable):
         items = rustac.to_arrow(items)

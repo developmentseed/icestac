@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, cast
 
 import pyarrow as pa
 import rustac
@@ -105,8 +105,8 @@ def _first_item_from_arrow(items: ArrowTable) -> dict[str, Any]:
 
 def get_schema_from_items(items: ItemsInput) -> ArrowSchema:
     if isinstance(items, dict):
-        item = items
-        items = [items]
+        item = cast(dict[str, Any], items)
+        items = [item]
     elif isinstance(items, list):
         item = items[0]
     elif isinstance(items, ArrowTable):
