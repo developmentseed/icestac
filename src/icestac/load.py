@@ -14,8 +14,9 @@ def load_items(
     items: ItemsInput,
     table: Table,
     method: Method = "upsert",
+    evolve_schema: bool = False,
 ) -> None:
-    """Load STAC items into their collection's Iceberg table."""
+    """Load STAC items, optionally evolving the Iceberg schema by name."""
     if method not in ("append", "upsert"):
         raise ValueError(f"Unsupported load method: {method}")
 
@@ -36,10 +37,15 @@ def load_items(
             f"{sorted(map(str, collection_ids))}"
         )
 
-    if method == "upsert":
-        table.upsert(
-            df=arrow_table,
-            join_cols=["id"],
-        )
-    else:
-        table.append(df=arrow_table)
+    with table.transaction() as transaction:
+        if evolve_schema:
+            with transaction.update_schema() as update:
+                update.union_by_name(arrow_table.schema)
+
+        if method == "upsert":
+            transaction.upsert(
+                df=arrow_table,
+                join_cols=["id"],
+            )
+        else:
+            transaction.append(df=arrow_table)

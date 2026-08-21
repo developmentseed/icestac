@@ -213,3 +213,27 @@ def test_load_items(
     result = table.scan().to_arrow()
     assert len(result) == len(expected_items)
     assert result.column("id").to_pylist() == [item["id"] for item in expected_items]
+
+
+def test_catalog_load_items_evolves_schema(
+    test_catalog: IcestacCatalog,
+    test_collection_id: str,
+    sample_stac_item: dict[str, Any],
+) -> None:
+    table = test_catalog.create_item_table(
+        iceberg_schema=convert_schema(get_schema_from_items(sample_stac_item)),
+        collection_id=test_collection_id,
+    )
+    evolved_item = {
+        **sample_stac_item,
+        "properties": {**sample_stac_item["properties"], "new_field": True},
+    }
+
+    test_catalog.load_items(
+        collection_id=test_collection_id,
+        items=evolved_item,
+        evolve_schema=True,
+    )
+
+    table.refresh()
+    assert table.schema().find_field("new_field")

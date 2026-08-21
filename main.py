@@ -35,7 +35,11 @@ async def copy_hls_stac_geoparquet(path: str, store: LocalStore) -> None:
 
 async def run() -> None:
     """Load several months of HLS STAC GeoParquet into local Iceberg."""
-    logging.basicConfig(level=logging.INFO)
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s:%(name)s:%(message)s",
+        datefmt="%Y-%m-%dT%H:%M:%S%z",
+    )
     catalog = IcestacCatalog(catalog=load_catalog())
 
     duckdb_client = DuckdbClient()
@@ -47,7 +51,7 @@ async def run() -> None:
     table_exists = False
 
     for month in range(1, 9, 1):
-        logger.info("processing 2026-%s", month)
+        month_logger = logger.getChild(f"2026-{month}")
         stac_geoparquet_path = HLS_STAC_GEOPARQUET_PATH_FMT.format(
             collection=source_collection_id,
             year="2026",
@@ -57,13 +61,13 @@ async def run() -> None:
         try:
             _ = local_store.head(stac_geoparquet_path)
         except FileNotFoundError:
-            logger.info("downloading %s", stac_geoparquet_path)
+            month_logger.info("downloading %s", stac_geoparquet_path)
             await copy_hls_stac_geoparquet(
                 path=stac_geoparquet_path,
                 store=local_store,
             )
 
-        logger.info("loading items as arrow table")
+        month_logger.info("loading items as arrow table")
         items = duckdb_client.search_to_arrow(href=f"data/{stac_geoparquet_path}")
 
         if not items:
@@ -90,15 +94,30 @@ async def run() -> None:
                     collection_id=collection_id,
                 )
             except TableAlreadyExistsError:
-                logger.warning("%s table already exists; using it", collection_id)
+                month_logger.warning("%s table already exists; using it", collection_id)
             table_exists = True
 
-        logger.info("loading items into icestac catalog")
-        catalog.load_items(
-            collection_id=collection_id,
-            items=items,
-            method="upsert",
-        )
+        month_logger.info("loading items into icestac catalog")
+        try:
+            catalog.load_items(
+                collection_id=collection_id,
+                items=items,
+                method="upsert",
+                evolve_schema=False,
+            )
+        except ValueError as e:
+            if "Update the schema first (hint, use union_by_name)" not in str(e):
+                raise
+
+            month_logger.warning(str(e))
+            month_logger.info("retrying load with evolve_schema=True")
+
+            catalog.load_items(
+                collection_id=collection_id,
+                items=items,
+                method="upsert",
+                evolve_schema=True,
+            )
 
 
 if __name__ == "__main__":

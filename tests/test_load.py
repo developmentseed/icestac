@@ -4,7 +4,7 @@ from typing import Any
 import pytest
 
 from icestac.catalog import IcestacCatalog
-from icestac.load import load_items
+from icestac.load import Method, load_items
 from icestac.schema import ItemsInput, convert_schema, get_schema_from_items
 from tests.helpers import items_to_list
 
@@ -206,18 +206,57 @@ def test_load_items_different_schema(
     test_catalog: IcestacCatalog,
     sample_stac_item: dict[str, Any],
 ) -> None:
-    # Create the table
     arrow_schema = get_schema_from_items(sample_stac_item)
     table = test_catalog.create_item_table(
         iceberg_schema=convert_schema(arrow_schema),
         collection_id=sample_stac_item["collection"],
     )
-
-    # load an item
     load_items([sample_stac_item], table)
 
-    # change the schema
-    item_new_schema = sample_stac_item.copy()
+    item_new_schema = deepcopy(sample_stac_item)
     item_new_schema["properties"]["new_field"] = True
     with pytest.raises(ValueError, match="Update the schema first"):
         load_items([item_new_schema], table)
+
+
+@pytest.mark.parametrize("method", ["append", "upsert"])
+def test_load_items_evolves_schema(
+    test_catalog: IcestacCatalog,
+    sample_stac_item: dict[str, Any],
+    method: Method,
+) -> None:
+    table = test_catalog.create_item_table(
+        iceberg_schema=convert_schema(get_schema_from_items(sample_stac_item)),
+        collection_id=sample_stac_item["collection"],
+    )
+    load_items(sample_stac_item, table)
+
+    evolved_item = deepcopy(sample_stac_item)
+    evolved_item["id"] = "evolved-item"
+    evolved_item["properties"]["processing:software"] = {
+        "Atmospheric Correction": "6.0"
+    }
+    load_items(evolved_item, table, method=method, evolve_schema=True)
+
+    table.refresh()
+    assert table.schema().find_field("processing:software.Atmospheric Correction")
+    assert len(table.scan().to_arrow()) == 2
+
+
+def test_load_items_does_not_evolve_schema_when_write_fails(
+    test_catalog: IcestacCatalog,
+    sample_stac_item: dict[str, Any],
+) -> None:
+    table = test_catalog.create_item_table(
+        iceberg_schema=convert_schema(get_schema_from_items(sample_stac_item)),
+        collection_id=sample_stac_item["collection"],
+    )
+    evolved_item = deepcopy(sample_stac_item)
+    evolved_item["properties"]["new_field"] = True
+
+    with pytest.raises(ValueError, match="Duplicate rows"):
+        load_items([evolved_item, evolved_item], table, evolve_schema=True)
+
+    table.refresh()
+    with pytest.raises(ValueError, match="Could not find field"):
+        table.schema().find_field("new_field")

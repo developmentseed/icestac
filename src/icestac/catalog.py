@@ -63,13 +63,18 @@ class IcestacCatalog:
         )
 
     def load_items(
-        self, collection_id: str, items: ItemsInput, method: Method = "upsert"
+        self,
+        collection_id: str,
+        items: ItemsInput,
+        method: Method = "upsert",
+        evolve_schema: bool = False,
     ) -> None:
-        """Load items into the table matching their collection ID."""
+        """Load items, optionally evolving their collection table schema."""
         load_items(
             items,
             table=self.catalog.load_table(
                 identifier=f"{self.namespace}.{collection_id}"
             ),
             method=method,
+            evolve_schema=evolve_schema,
         )
