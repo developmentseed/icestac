@@ -15,7 +15,6 @@ from icestac.errors import InvalidCollectionIdError
 from icestac.schema import (
     IcestacItem,
     ItemsInput,
-    convert_schema,
     get_schema_from_items,
 )
 from tests.helpers import items_to_list
@@ -27,9 +26,9 @@ def test_create_item_table(
     items: ItemsInput,
 ) -> None:
     expected_items = items_to_list(items)
-    arrow_schema = get_schema_from_items(items)
+    iceberg_schema = get_schema_from_items(items)
     table = test_catalog.create_item_table(
-        iceberg_schema=convert_schema(arrow_schema),
+        iceberg_schema=iceberg_schema,
         collection_id=test_collection_id,
     )
 
@@ -57,7 +56,7 @@ def test_create_item_table(
 
     with pytest.raises(TableAlreadyExistsError):
         test_catalog.create_item_table(
-            iceberg_schema=convert_schema(arrow_schema),
+            iceberg_schema=iceberg_schema,
             collection_id=test_collection_id,
         )
 
@@ -66,10 +65,10 @@ def test_create_item_table_bad_collection_id(
     test_catalog: IcestacCatalog,
     items: ItemsInput,
 ) -> None:
-    arrow_schema = get_schema_from_items(items)
+    iceberg_schema = get_schema_from_items(items)
     with pytest.raises(InvalidCollectionIdError):
         test_catalog.create_item_table(
-            iceberg_schema=convert_schema(arrow_schema),
+            iceberg_schema=iceberg_schema,
             collection_id="bad.collection",
         )
 
@@ -79,7 +78,7 @@ def test_create_item_table_custom_layout(
     test_collection_id: str,
     sample_stac_item: dict[str, Any],
 ) -> None:
-    iceberg_schema = convert_schema(get_schema_from_items(sample_stac_item))
+    iceberg_schema = get_schema_from_items(sample_stac_item)
     title_id = iceberg_schema.find_field("title").field_id
 
     table = test_catalog.create_item_table(
@@ -114,7 +113,7 @@ def test_create_item_table_unpartitioned(
 ) -> None:
     table = test_catalog.create_item_table(
         collection_id=test_collection_id,
-        iceberg_schema=convert_schema(get_schema_from_items(sample_stac_item)),
+        iceberg_schema=get_schema_from_items(sample_stac_item),
         partition_spec=PartitionSpec(),
     )
 
@@ -126,7 +125,7 @@ def test_create_item_table_rejects_invalid_schema(
     test_collection_id: str,
     sample_stac_item: dict[str, Any],
 ) -> None:
-    iceberg_schema = convert_schema(get_schema_from_items(sample_stac_item))
+    iceberg_schema = get_schema_from_items(sample_stac_item)
     missing_id = IcebergSchema(
         *(field for field in iceberg_schema.fields if field.name != "id")
     )
@@ -146,7 +145,7 @@ def test_create_item_table_rejects_unknown_partition_source(
     with pytest.raises(ValueError):
         test_catalog.create_item_table(
             collection_id=test_collection_id,
-            iceberg_schema=convert_schema(get_schema_from_items(sample_stac_item)),
+            iceberg_schema=get_schema_from_items(sample_stac_item),
             partition_spec=PartitionSpec(
                 PartitionField(
                     source_id=9999,
@@ -166,7 +165,7 @@ def test_create_item_table_rejects_unknown_sort_source(
     with pytest.raises(ValueError):
         test_catalog.create_item_table(
             collection_id=test_collection_id,
-            iceberg_schema=convert_schema(get_schema_from_items(sample_stac_item)),
+            iceberg_schema=get_schema_from_items(sample_stac_item),
             sort_order=SortOrder(SortField(source_id=9999)),
         )
 
@@ -176,9 +175,9 @@ def test_load_items_rejects_a_different_collection(
     test_collection_id: str,
     sample_stac_item: dict[str, Any],
 ) -> None:
-    arrow_schema = get_schema_from_items(sample_stac_item)
+    iceberg_schema = get_schema_from_items(sample_stac_item)
     table = test_catalog.create_item_table(
-        iceberg_schema=convert_schema(arrow_schema),
+        iceberg_schema=iceberg_schema,
         collection_id=test_collection_id,
     )
     sample_stac_item["collection"] = "different-collection"
@@ -195,9 +194,9 @@ def test_load_items(
     items: ItemsInput,
 ) -> None:
     expected_items = items_to_list(items)
-    arrow_schema = get_schema_from_items(items)
+    iceberg_schema = get_schema_from_items(items)
     table = test_catalog.create_item_table(
-        iceberg_schema=convert_schema(arrow_schema),
+        iceberg_schema=iceberg_schema,
         collection_id=test_collection_id,
     )
 
@@ -221,7 +220,7 @@ def test_catalog_load_items_evolves_schema(
     sample_stac_item: dict[str, Any],
 ) -> None:
     table = test_catalog.create_item_table(
-        iceberg_schema=convert_schema(get_schema_from_items(sample_stac_item)),
+        iceberg_schema=get_schema_from_items(sample_stac_item),
         collection_id=test_collection_id,
     )
     evolved_item = {

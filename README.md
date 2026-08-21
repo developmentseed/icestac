@@ -27,16 +27,15 @@ To get started, create a table and load some items. `IcestacCatalog.create_item_
 from pyiceberg.catalog import load_catalog
 
 from icestac.catalog import IcestacCatalog
-from icestac.schema import convert_schema, get_schema_from_items
+from icestac.schema import get_schema_from_items
 
 catalog = IcestacCatalog(catalog=load_catalog())
-arrow_schema = get_schema_from_items(items)
-iceberg_schema = convert_schema(arrow_schema)
+iceberg_schema = get_schema_from_items(items)
 catalog.create_item_table(collection_id=collection_id, iceberg_schema=iceberg_schema)
 catalog.load_items(collection_id=collection_id, items=items)
 ```
 
-`get_schema_from_items(...)` accepts one STAC item dictionary, a list of dictionaries, or an `arro3.core.Table`. `convert_schema(...)` validates the item schema and returns an Iceberg schema with the field IDs needed for table layout. `load_items(...)` accepts the same inputs, checks that every row belongs to the target collection, and upserts on STAC `id` by default.
+`get_schema_from_items(...)` accepts one STAC item dictionary, a list of dictionaries, or an `arro3.core.Table`, validates it, and returns an Iceberg schema with the field IDs needed for table layout. `load_items(...)` accepts the same inputs, checks that every row belongs to the target collection, and upserts on STAC `id` by default.
 
 Incoming fields that are absent from the table schema raise an error. If you want PyIceberg to add compatible fields by name, pass `evolve_schema=True`. The schema update and write then commit in one transaction:
 
@@ -51,33 +50,32 @@ catalog.load_items(
 If you manage schema changes separately, update the table with PyIceberg before loading:
 
 ```python
-import pyarrow
-
-arrow_schema = get_schema_from_items(items)
+iceberg_schema = get_schema_from_items(items)
 table = catalog.catalog.load_table((catalog.namespace, collection_id))
 with table.update_schema() as update:
-    update.union_by_name(pyarrow.schema(arrow_schema))
+    update.union_by_name(iceberg_schema)
 
 catalog.load_items(collection_id=collection_id, items=items)
 ```
 
-Without layout configuration, a table gets the monthly `datetime` partition and no sort order. For a custom layout, build native PyIceberg objects from the prepared schema. This example assumes your STAC items have a `sortme` property:
+Without layout configuration, a table gets the monthly `datetime` partition and no sort order. For a custom layout, build native PyIceberg objects from the prepared schema. This example partitions items by year and sorts them by a `sortme` property:
 
 ```python
 from pyiceberg.partitioning import PartitionField, PartitionSpec
 from pyiceberg.table.sorting import SortField, SortOrder
-from pyiceberg.transforms import IdentityTransform
+from pyiceberg.transforms import YearTransform
 
+datetime_id = iceberg_schema.find_field("datetime").field_id
 sort_id = iceberg_schema.find_field("sortme").field_id
 catalog.create_item_table(
     collection_id=collection_id,
     iceberg_schema=iceberg_schema,
     partition_spec=PartitionSpec(
         PartitionField(
-            source_id=sort_id,
+            source_id=datetime_id,
             field_id=1000,
-            transform=IdentityTransform(),
-            name="sortme",
+            transform=YearTransform(),
+            name="datetime_year",
         )
     ),
     sort_order=SortOrder(SortField(source_id=sort_id)),

@@ -9,7 +9,7 @@ from pyiceberg.exceptions import TableAlreadyExistsError
 from rustac import DuckdbClient
 
 from icestac.catalog import IcestacCatalog
-from icestac.schema import convert_schema, get_schema_from_items
+from icestac.schema import get_schema_from_items
 
 logger = logging.getLogger("icestac-demo")
 
@@ -85,12 +85,12 @@ async def run() -> None:
                 ),
             )
         )
-        arrow_schema = get_schema_from_items(items)
+        iceberg_schema = get_schema_from_items(items)
 
         if not table_exists:
             try:
                 catalog.create_item_table(
-                    iceberg_schema=convert_schema(arrow_schema),
+                    iceberg_schema=iceberg_schema,
                     collection_id=collection_id,
                 )
             except TableAlreadyExistsError:

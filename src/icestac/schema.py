@@ -83,8 +83,8 @@ def _first_item_from_arrow(items: ArrowTable) -> dict[str, Any]:
     return feature_collection["features"][0]
 
 
-def get_schema_from_items(items: ItemsInput) -> ArrowSchema:
-    """Derive an enforced Arrow schema from STAC dictionaries or Arrow data."""
+def get_schema_from_items(items: ItemsInput) -> IcebergSchema:
+    """Derive an Iceberg schema from STAC dictionaries or Arrow data."""
     if isinstance(items, dict):
         item = cast(dict[str, Any], items)
         items = [item]
@@ -98,19 +98,13 @@ def get_schema_from_items(items: ItemsInput) -> ArrowSchema:
     if not isinstance(items, ArrowTable):
         items = rustac.to_arrow(items)
 
-    return IcestacItem.enforce_required_fields(items.schema)
-
-
-def convert_schema(schema: ArrowSchema) -> IcebergSchema:
-    """Validate and convert an Arrow item schema to Iceberg with field IDs."""
+    schema = IcestacItem.enforce_required_fields(items.schema)
     IcestacItem.validate_schema(schema)
-    _schema = _pyarrow_to_schema_without_ids(
-        pa.schema(IcestacItem.enforce_required_fields(schema))
-    )
+    schema_without_ids = _pyarrow_to_schema_without_ids(pa.schema(schema))
 
     fields = []
-    for i, _field in enumerate(_schema.fields, start=1):
-        field_dict = _field.model_dump()
+    for i, field in enumerate(schema_without_ids.fields, start=1):
+        field_dict = field.model_dump()
         field_dict["id"] = i
         fields.append(NestedField(**field_dict))
 

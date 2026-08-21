@@ -5,7 +5,7 @@ import pytest
 
 from icestac.catalog import IcestacCatalog
 from icestac.load import Method, load_items
-from icestac.schema import ItemsInput, convert_schema, get_schema_from_items
+from icestac.schema import ItemsInput, get_schema_from_items
 from tests.helpers import items_to_list
 
 
@@ -18,9 +18,9 @@ def test_load_items_upsert_default(
     expected_items = items_to_list(items)
 
     # Create the table
-    arrow_schema = get_schema_from_items(items)
+    iceberg_schema = get_schema_from_items(items)
     table = test_catalog.create_item_table(
-        iceberg_schema=convert_schema(arrow_schema),
+        iceberg_schema=iceberg_schema,
         collection_id=test_collection_id,
     )
 
@@ -43,9 +43,9 @@ def test_load_items_upsert_explicit(
     expected_items = items_to_list(items)
 
     # Create the table
-    arrow_schema = get_schema_from_items(items)
+    iceberg_schema = get_schema_from_items(items)
     table = test_catalog.create_item_table(
-        iceberg_schema=convert_schema(arrow_schema),
+        iceberg_schema=iceberg_schema,
         collection_id=expected_items[0]["collection"],
     )
 
@@ -65,9 +65,9 @@ def test_load_items_upsert_updates_existing(
     expected_items = items_to_list(items)
 
     # Create the table
-    arrow_schema = get_schema_from_items(items)
+    iceberg_schema = get_schema_from_items(items)
     table = test_catalog.create_item_table(
-        iceberg_schema=convert_schema(arrow_schema),
+        iceberg_schema=iceberg_schema,
         collection_id=expected_items[0]["collection"],
     )
 
@@ -102,9 +102,9 @@ def test_load_items_append(
     expected_items = items_to_list(items)
 
     # Create the table
-    arrow_schema = get_schema_from_items(items)
+    iceberg_schema = get_schema_from_items(items)
     table = test_catalog.create_item_table(
-        iceberg_schema=convert_schema(arrow_schema),
+        iceberg_schema=iceberg_schema,
         collection_id=expected_items[0]["collection"],
     )
 
@@ -124,9 +124,9 @@ def test_load_items_append_creates_duplicates(
     expected_items = items_to_list(items)
 
     # Create the table
-    arrow_schema = get_schema_from_items(items)
+    iceberg_schema = get_schema_from_items(items)
     table = test_catalog.create_item_table(
-        iceberg_schema=convert_schema(arrow_schema),
+        iceberg_schema=iceberg_schema,
         collection_id=expected_items[0]["collection"],
     )
 
@@ -147,9 +147,9 @@ def test_load_items_multiple_batches(
     expected_items = items_to_list(items)
 
     # Create the table
-    arrow_schema = get_schema_from_items(items)
+    iceberg_schema = get_schema_from_items(items)
     table = test_catalog.create_item_table(
-        iceberg_schema=convert_schema(arrow_schema),
+        iceberg_schema=iceberg_schema,
         collection_id=expected_items[0]["collection"],
     )
 
@@ -171,9 +171,9 @@ def test_load_items_rejects_invalid_method(
     test_catalog: IcestacCatalog,
     sample_stac_item: dict[str, Any],
 ) -> None:
-    arrow_schema = get_schema_from_items(sample_stac_item)
+    iceberg_schema = get_schema_from_items(sample_stac_item)
     table = test_catalog.create_item_table(
-        iceberg_schema=convert_schema(arrow_schema),
+        iceberg_schema=iceberg_schema,
         collection_id=sample_stac_item["collection"],
     )
 
@@ -191,9 +191,9 @@ def test_load_items_supports_interval_datetime(
         "start_datetime": "2024-01-01T00:00:00Z",
         "end_datetime": "2024-01-02T00:00:00Z",
     }
-    arrow_schema = get_schema_from_items(interval_item)
+    iceberg_schema = get_schema_from_items(interval_item)
     table = test_catalog.create_item_table(
-        iceberg_schema=convert_schema(arrow_schema),
+        iceberg_schema=iceberg_schema,
         collection_id=interval_item["collection"],
     )
 
@@ -206,9 +206,9 @@ def test_load_items_different_schema(
     test_catalog: IcestacCatalog,
     sample_stac_item: dict[str, Any],
 ) -> None:
-    arrow_schema = get_schema_from_items(sample_stac_item)
+    iceberg_schema = get_schema_from_items(sample_stac_item)
     table = test_catalog.create_item_table(
-        iceberg_schema=convert_schema(arrow_schema),
+        iceberg_schema=iceberg_schema,
         collection_id=sample_stac_item["collection"],
     )
     load_items([sample_stac_item], table)
@@ -226,7 +226,7 @@ def test_load_items_evolves_schema(
     method: Method,
 ) -> None:
     table = test_catalog.create_item_table(
-        iceberg_schema=convert_schema(get_schema_from_items(sample_stac_item)),
+        iceberg_schema=get_schema_from_items(sample_stac_item),
         collection_id=sample_stac_item["collection"],
     )
     load_items(sample_stac_item, table)
@@ -248,7 +248,7 @@ def test_load_items_does_not_evolve_schema_when_write_fails(
     sample_stac_item: dict[str, Any],
 ) -> None:
     table = test_catalog.create_item_table(
-        iceberg_schema=convert_schema(get_schema_from_items(sample_stac_item)),
+        iceberg_schema=get_schema_from_items(sample_stac_item),
         collection_id=sample_stac_item["collection"],
     )
     evolved_item = deepcopy(sample_stac_item)
