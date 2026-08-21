@@ -1,3 +1,5 @@
+from typing import Any
+
 import pyarrow
 import pytest
 from arro3.core import Table as ArrowTable
@@ -58,6 +60,24 @@ def test_create_item_table_bad_collection_id(
             arrow_schema=arrow_schema,
             collection_id="bad.collection",
         )
+
+
+def test_load_items_rejects_a_different_collection(
+    test_catalog: IcestacCatalog,
+    test_collection_id: str,
+    sample_stac_item: dict[str, Any],
+) -> None:
+    arrow_schema = get_schema_from_items(sample_stac_item)
+    table = test_catalog.create_item_table(
+        arrow_schema=arrow_schema,
+        collection_id=test_collection_id,
+    )
+    sample_stac_item["collection"] = "different-collection"
+
+    with pytest.raises(ValueError, match="different-collection"):
+        test_catalog.load_items(test_collection_id, sample_stac_item)
+
+    assert len(table.scan().to_arrow()) == 0
 
 
 def test_load_items(

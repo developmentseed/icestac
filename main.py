@@ -1,45 +1,101 @@
 import asyncio
 import logging
 
-import rustac
+import pyarrow
+from arro3.core import Table as ArrowTable
+from obstore.store import LocalStore, S3Store
 from pyiceberg.catalog import load_catalog
 from pyiceberg.exceptions import TableAlreadyExistsError
+from rustac import DuckdbClient
 
 from icestac.catalog import IcestacCatalog
 from icestac.schema import get_schema_from_items
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("icestac-demo")
 
-BATCH_SIZE = 1000
+HLS_STAC_GEOPARQUET_BUCKET = "nasa-maap-data-store"
+HLS_STAC_GEOPARQUET_PREFIX = "file-staging/nasa-map/hls-stac-geoparquet-archive/v2"
+HLS_STAC_GEOPARQUET_PATH_FMT = (
+    "{collection}/year={year}/month={month}/{collection}-{year}-{month}.parquet"
+)
 
 
-async def run():
+async def copy_hls_stac_geoparquet(path: str, store: LocalStore) -> None:
+    """Copy one public HLS STAC GeoParquet file into a local store."""
+    hls_stac_store = S3Store(
+        bucket=HLS_STAC_GEOPARQUET_BUCKET,
+        prefix=HLS_STAC_GEOPARQUET_PREFIX,
+        region="us-west-2",
+        skip_signature=True,
+    )
+
+    resp = await hls_stac_store.get_async(path)
+    await store.put_async(path, resp)
+
+
+async def run() -> None:
+    """Load several months of HLS STAC GeoParquet into local Iceberg."""
     logging.basicConfig(level=logging.INFO)
     catalog = IcestacCatalog(catalog=load_catalog())
 
-    items = await rustac.search(
-        "https://stac.maap-project.org",
-        collections="icesat2-boreal-v3.1-agb",
-        limit=200,
-    )
+    duckdb_client = DuckdbClient()
+    duckdb_client.execute("SET TimeZone = 'UTC';")
+    local_store = LocalStore("data")
 
-    collection_id = "icesat2_boreal_v3_1_agb"
-    for item in items:
-        item["collection"] = collection_id
+    source_collection_id = "HLSS30_2.0"
+    collection_id = "HLSS30_2_0"
+    table_exists = False
 
-    schema = get_schema_from_items(items)
+    for month in ["1", "2", "3", "4"]:
+        logger.info("processing 2026-%s", month)
+        stac_geoparquet_path = HLS_STAC_GEOPARQUET_PATH_FMT.format(
+            collection=source_collection_id,
+            year="2026",
+            month=month,
+        )
 
-    try:
-        catalog.create_item_table(arrow_schema=schema, collection_id=collection_id)
-    except TableAlreadyExistsError:
-        logger.warning(f"{collection_id} table already exists... skipping")
+        try:
+            _ = local_store.head(stac_geoparquet_path)
+        except FileNotFoundError:
+            logger.info("downloading %s", stac_geoparquet_path)
+            await copy_hls_stac_geoparquet(
+                path=stac_geoparquet_path,
+                store=local_store,
+            )
 
-    batches = [items[i : i + BATCH_SIZE] for i in range(0, len(items), BATCH_SIZE)]
-    for i, batch in enumerate(batches, start=1):
-        logger.info("Loading batch %d/%d (%d items)", i, len(batches), len(batch))
+        logger.info("loading items as arrow table")
+        items = duckdb_client.search_to_arrow(href=f"data/{stac_geoparquet_path}")
+
+        if not items:
+            raise ValueError("No items found")
+
+        items_table = pyarrow.table(items)
+        collection_index = items_table.schema.get_field_index("collection")
+        collection_field = items_table.schema.field(collection_index)
+        items = ArrowTable.from_arrow(
+            items_table.set_column(
+                collection_index,
+                collection_field,
+                pyarrow.array(
+                    [collection_id] * len(items_table), type=collection_field.type
+                ),
+            )
+        )
+        schema = get_schema_from_items(items)
+
+        if not table_exists:
+            try:
+                catalog.create_item_table(
+                    arrow_schema=schema, collection_id=collection_id
+                )
+            except TableAlreadyExistsError:
+                logger.warning("%s table already exists; using it", collection_id)
+            table_exists = True
+
+        logger.info("loading items into icestac catalog")
         catalog.load_items(
             collection_id=collection_id,
-            items=batch,
+            items=items,
             method="upsert",
         )
 

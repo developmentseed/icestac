@@ -2,15 +2,20 @@
 
 ## Overview
 
-This project creates a Python library (`icestac`) that uses rustac to convert STAC item collections to Arrow tables and writes them to Apache Iceberg tables.
+`icestac` uses rustac's flattened Arrow representation of STAC Items and writes it to Apache Iceberg.
 
-At a high level, the library is split into three pieces:
+The library is split into three pieces:
 
-- `src/icestac/schema.py` validates STAC items with `stac-pydantic`, derives an Arrow schema from incoming items, and converts that schema to an Iceberg schema with stable field IDs.
-- `src/icestac/catalog.py` wraps a PyIceberg catalog and creates per-collection item tables in the `icestac` namespace.
-- `src/icestac/load.py` turns STAC items into Arrow data and writes them to Iceberg with either `append` or `upsert` semantics.
+- `src/icestac/schema.py` validates STAC inputs, preserves Arrow metadata, and converts Arrow schemas to Iceberg schemas with field IDs.
+- `src/icestac/catalog.py` wraps a PyIceberg catalog and creates one item table per collection in the `icestac` namespace.
+- `src/icestac/load.py` accepts STAC dictionaries or `arro3.core.Table` data and writes it with `append` or `upsert` semantics.
 
-The goal is a stac-geoparquet-backed system that can be used to maintain a **STAC Catalog** with many collections and support real-time ingestion. It will include an event-driven AWS pipeline for ingesting STAC items into an Iceberg catalog via SNS/SQS and Lambda.
+This is an early foundation, not a released storage specification. Current boundaries are intentional:
+
+- A table name matches its items' collection ID. Periods are unsupported because Iceberg uses them as namespace delimiters; `icestac` does not silently rewrite IDs.
+- Tables are partitioned by `datetime` month. Other temporal or spatial layouts are deferred until there are concrete query patterns.
+- Table schemas do not evolve automatically. Loading a new shape fails until the Iceberg schema is updated separately.
+- Geometry is stored as WKB, but PyIceberg does not currently emit the GeoParquet and STAC GeoParquet file metadata required to claim compliance with those specifications.
 
 ## Development
 
@@ -60,61 +65,20 @@ PyIceberg will pick this up automatically when running from the project director
 uv run python main.py
 ```
 
-First, load the default PyIceberg catalog from `.pyiceberg.yaml` and wrap it with `IcestacCatalog`:
+The script downloads four months of HLS STAC GeoParquet from public S3, reads each file directly as Arrow, and loads it through `IcestacCatalog`.
+
+The source collection ID, `HLSS30_2.0`, contains a period and cannot be used unchanged as an Iceberg identifier. The demo explicitly migrates the dataset to `HLSS30_2_0` by replacing every item's collection value before creating the matching table. This is a dataset decision, not automatic library slugification.
+
+The core API remains explicit:
 
 ```python
 catalog = IcestacCatalog(catalog=load_catalog())
-```
-
-That gives `icestac` a catalog client that knows how to create and load item tables in the `icestac` namespace.
-
-Next, fetch a collection of STAC items from a STAC API:
-
-```python
-items = await rustac.search(
-    "https://stac.maap-project.org",
-    collections="icesat2-boreal-v3.1-agb",
-    max_items=200,
-)
-```
-
-Here `rustac.search(...)` pulls pages of 200 items from the MAAP STAC API. In a real application, those items could also come from a webhook, a queue, or another ingestion step.
-
-Then normalize the collection id into something that will work as an Iceberg table name and write that value onto each item:
-
-```python
-collection_id = "icesat2_boreal_v3_1_agb"
-for item in items:
-    item["collection"] = collection_id
-```
-
-The sample uses an Iceberg-safe table id with underscores. It also ensures every item carries the collection value that will be stored in the table.
-
-Once the items are in hand, derive the schema and create the Iceberg table:
-
-```python
 schema = get_schema_from_items(items)
-catalog.create_item_table(arrow_schema=schema, collection_id=collection_id)
+catalog.create_item_table(collection_id=collection_id, arrow_schema=schema)
+catalog.load_items(collection_id=collection_id, items=items)
 ```
 
-`get_schema_from_items(...)` validates the items as STAC, derives an Arrow schema, and marks required STAC fields as non-nullable. `create_item_table(...)` converts that Arrow schema to an Iceberg schema and creates `icestac.icesat2_boreal_v3_1_agb`, currently partitioned by `datetime` month.
-
-Finally, split the items into batches and upsert them into Iceberg:
-
-```python
-batches = [items[i : i + BATCH_SIZE] for i in range(0, len(items), BATCH_SIZE)]
-for i, batch in enumerate(batches, start=1):
-    logger.info("Loading batch %d/%d (%d items)", i, len(batches), len(batch))
-    catalog.load_items(
-        collection_id=collection_id,
-        items=batch,
-        method="upsert",
-    )
-```
-
-`catalog.load_items(...)` converts each batch to Arrow and writes it to Iceberg. In `upsert` mode, the table uses STAC `id` as the join key, so rerunning the workflow updates existing items instead of blindly appending duplicates.
-
-That is the core `icestac` usage pattern today: generate items, set the collection id, derive a schema, create the collection table, and then append or upsert batches into Iceberg.
+`get_schema_from_items(...)` accepts one STAC dictionary, a list of dictionaries, or an `arro3.core.Table`. `load_items(...)` accepts the same inputs, checks that every row belongs to the target collection, and upserts on STAC `id` by default.
 
 **4. Query with DuckDB:**
 
@@ -147,11 +111,13 @@ ATTACH 'icestac' AS catalog (
 );
 
 SELECT id, datetime, collection, geometry
-FROM catalog.icestac.icesat2_boreal_v3_1_agb
+FROM catalog.icestac.HLSS30_2_0
 LIMIT 10;
 
 SELECT count(*)
-FROM catalog.icestac.icesat2_boreal_v3_1_agb;
+FROM catalog.icestac.HLSS30_2_0;
+
+DESCRIBE SELECT bbox, geometry FROM catalog.icestac.HLSS30_2_0;
 ```
 
 Or scan the table directly from its S3 path (no catalog required):
@@ -159,7 +125,30 @@ Or scan the table directly from its S3 path (no catalog required):
 ```sql
 SET unsafe_enable_version_guessing = true;
 SELECT *
-FROM iceberg_scan('s3://warehouse/icestac/icesat2_boreal_v3_1_agb')
+FROM iceberg_scan('s3://warehouse/icestac/HLSS30_2_0')
 LIMIT 10;
+```
+
+## Delete a Table
+
+To remove a table from the local Iceberg REST catalog, call `drop_table(...)` on the underlying PyIceberg catalog:
+
+```python
+from pyiceberg.catalog import load_catalog
+from icestac.catalog import IcestacCatalog
+
+catalog = IcestacCatalog(catalog=load_catalog())
+catalog.catalog.drop_table(
+    ("icestac", "HLSS30_2_0"),
+    purge_requested=True,
+)
+```
+
+`purge_requested=True` asks the REST catalog to delete the underlying table data as well as the catalog entry.
+
+If the metadata entry is removed but table files remain in MinIO, delete the warehouse path manually:
+
+```bash
+docker compose exec mc mc rm --recursive --force minio/warehouse/icestac/HLSS30_2_0
 ```
 

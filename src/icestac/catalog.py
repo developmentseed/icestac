@@ -15,7 +15,7 @@ from icestac.schema import IcestacItem, ItemsInput, convert_schema
 
 
 def validate_collection_id(collection_id: str) -> None:
-    """Ensure collection id is valid for icestac schema"""
+    """Ensure a collection ID can be used as an Iceberg table name."""
 
     if "." in collection_id:
         raise InvalidCollectionIdError(collection_id)
@@ -23,7 +23,7 @@ def validate_collection_id(collection_id: str) -> None:
 
 @dataclass
 class IcestacCatalog:
-    """Icestac client class for pyiceberg Catalog"""
+    """Manage collection item tables through a PyIceberg catalog."""
 
     catalog: Catalog
     namespace: str = DEFAULT_NAMESPACE
@@ -36,21 +36,14 @@ class IcestacCatalog:
         collection_id: str,
         arrow_schema: ArrowSchema,
     ) -> Table:
-        """
-        Create an Iceberg table from a stac-geoparquet Arrow schema
-
-        Converts the Arrow schema to an Iceberg schema with manually assigned field IDs,
-        then creates or loads the Iceberg table partitioned by datetime month.
+        """Create a monthly partitioned Iceberg item table for a collection.
 
         Args:
-            schema: arro3.core.Schema for the items in this collection
-            collection_id: the collection id for the items in this table
-            catalog: PyIceberg catalog instance
-            namespace: Namespace for the Iceberg table
+            collection_id: Collection ID, used unchanged as the table name.
+            arrow_schema: Arrow schema for the collection's items.
 
         Returns:
-            PyIceberg Table instance
-
+            The created PyIceberg table.
         """
         validate_collection_id(collection_id)
         IcestacItem.validate_schema(arrow_schema)
@@ -76,6 +69,7 @@ class IcestacCatalog:
     def load_items(
         self, collection_id: str, items: ItemsInput, method: Method = "upsert"
     ) -> None:
+        """Load items into the table matching their collection ID."""
         load_items(
             items,
             table=self.catalog.load_table(

@@ -1,3 +1,4 @@
+from copy import deepcopy
 from typing import Any
 
 import pytest
@@ -164,6 +165,41 @@ def test_load_items_multiple_batches(
 
     result = table.scan().to_arrow()
     assert len(result) == len(expected_items)
+
+
+def test_load_items_rejects_invalid_method(
+    test_catalog: IcestacCatalog,
+    sample_stac_item: dict[str, Any],
+) -> None:
+    arrow_schema = get_schema_from_items(sample_stac_item)
+    table = test_catalog.create_item_table(
+        arrow_schema=arrow_schema,
+        collection_id=sample_stac_item["collection"],
+    )
+
+    with pytest.raises(ValueError, match="Unsupported load method"):
+        load_items(sample_stac_item, table, method="insert")  # type: ignore[arg-type]
+
+
+def test_load_items_supports_interval_datetime(
+    test_catalog: IcestacCatalog,
+    sample_stac_item: dict[str, Any],
+) -> None:
+    interval_item = deepcopy(sample_stac_item)
+    interval_item["properties"] = {
+        "datetime": None,
+        "start_datetime": "2024-01-01T00:00:00Z",
+        "end_datetime": "2024-01-02T00:00:00Z",
+    }
+    arrow_schema = get_schema_from_items(interval_item)
+    table = test_catalog.create_item_table(
+        arrow_schema=arrow_schema,
+        collection_id=interval_item["collection"],
+    )
+
+    load_items(interval_item, table)
+
+    assert table.scan().to_arrow().column("id").to_pylist() == [interval_item["id"]]
 
 
 def test_load_items_different_schema(

@@ -1,8 +1,8 @@
-from typing import Any, cast
+from types import NoneType
+from typing import Any, cast, get_args
 
 import pyarrow as pa
 import rustac
-from arro3.core import Field
 from arro3.core import Schema as ArrowSchema
 from arro3.core import Table as ArrowTable
 from pyiceberg.io.pyarrow import _pyarrow_to_schema_without_ids
@@ -38,34 +38,25 @@ class IcestacItem(Item):
         return required_fields
 
     @classmethod
+    def get_non_nullable_fields(cls) -> set[str]:
+        """Get STAC fields whose values cannot be null."""
+        fields = {
+            name
+            for name, info in cls.model_fields.items()
+            if info.is_required() and NoneType not in get_args(info.annotation)
+        }
+        fields.discard("properties")
+        return fields
+
+    @classmethod
     def enforce_required_fields(cls, schema: ArrowSchema) -> ArrowSchema:
-        """
-        Ensure required STAC fields are marked as non-nullable in the Arrow schema.
-
-        Returns a schema with required fields marked as nullable=False. This ensures
-        the Iceberg table will enforce these fields as required.
-
-        Args:
-            schema: arro3.core.Schema from rustac
-
-        Returns:
-            arro3.core.Schema with required fields marked as non-nullable
-        """
-        required_fields = cls.get_required_fields()
-
-        new_fields = []
-
-        for field in schema:
-            if field.name in required_fields:
-                # Mark as non-nullable (required)
-                new_fields.append(
-                    Field(name=field.name, type=field.type, nullable=False)
-                )
-            else:
-                # Keep original nullable setting
-                new_fields.append(field)
-
-        return ArrowSchema(fields=new_fields)
+        """Mark non-null STAC fields as non-nullable without losing metadata."""
+        non_nullable_fields = cls.get_non_nullable_fields()
+        fields = [
+            field.with_nullable(False) if field.name in non_nullable_fields else field
+            for field in schema
+        ]
+        return ArrowSchema(fields=fields, metadata=schema.metadata)
 
     @classmethod
     def validate_schema(cls, schema: ArrowSchema) -> None:
@@ -104,6 +95,7 @@ def _first_item_from_arrow(items: ArrowTable) -> dict[str, Any]:
 
 
 def get_schema_from_items(items: ItemsInput) -> ArrowSchema:
+    """Derive an enforced Arrow schema from STAC dictionaries or Arrow data."""
     if isinstance(items, dict):
         item = cast(dict[str, Any], items)
         items = [item]
@@ -121,10 +113,7 @@ def get_schema_from_items(items: ItemsInput) -> ArrowSchema:
 
 
 def convert_schema(schema: ArrowSchema) -> IcebergSchema:
-    """Convert the arrow schema to an iceberg schema with field ids
-
-    Necessary because built-in converter functions do not assign field ids.
-    """
+    """Convert an Arrow schema to an Iceberg schema with field IDs."""
     _schema = _pyarrow_to_schema_without_ids(
         pa.schema(IcestacItem.enforce_required_fields(schema))
     )

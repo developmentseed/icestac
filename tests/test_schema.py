@@ -16,6 +16,7 @@ def test_get_schema_from_items(sample_stac_item: dict[str, Any]) -> None:
     assert "id" in schema.names
     assert "datetime" in schema.names
     assert "collection" in schema.names
+    assert schema.field("geometry").metadata[b"ARROW:extension:name"] == b"geoarrow.wkb"
 
 
 def test_get_schema_from_items_validates(sample_stac_item: dict[str, Any]) -> None:
