@@ -2,16 +2,17 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from arro3.core import Schema as ArrowSchema
 from pyiceberg.catalog import Catalog
 from pyiceberg.partitioning import PartitionField, PartitionSpec
+from pyiceberg.schema import Schema as IcebergSchema
 from pyiceberg.table import Table
+from pyiceberg.table.sorting import UNSORTED_SORT_ORDER, SortOrder
 from pyiceberg.transforms import MonthTransform
 
 from icestac.constants import DEFAULT_NAMESPACE
 from icestac.errors import InvalidCollectionIdError
 from icestac.load import Method, load_items
-from icestac.schema import IcestacItem, ItemsInput, convert_schema
+from icestac.schema import IcestacItem, ItemsInput
 
 
 def validate_collection_id(collection_id: str) -> None:
@@ -34,36 +35,31 @@ class IcestacCatalog:
     def create_item_table(
         self,
         collection_id: str,
-        arrow_schema: ArrowSchema,
+        iceberg_schema: IcebergSchema,
+        partition_spec: PartitionSpec | None = None,
+        sort_order: SortOrder = UNSORTED_SORT_ORDER,
     ) -> Table:
-        """Create a monthly partitioned Iceberg item table for a collection.
-
-        Args:
-            collection_id: Collection ID, used unchanged as the table name.
-            arrow_schema: Arrow schema for the collection's items.
-
-        Returns:
-            The created PyIceberg table.
-        """
+        """Create an Iceberg item table for a collection."""
         validate_collection_id(collection_id)
-        IcestacItem.validate_schema(arrow_schema)
+        IcestacItem.validate_schema(iceberg_schema)
 
         # TODO: check if collection record is present in collections table
 
-        iceberg_schema = convert_schema(arrow_schema)
-
-        return self.catalog.create_table(
-            identifier=f"{self.namespace}.{collection_id}",
-            schema=iceberg_schema,
-            partition_spec=PartitionSpec(
-                # TODO: make temporal partitioning configurable
+        if partition_spec is None:
+            partition_spec = PartitionSpec(
                 PartitionField(
                     source_id=iceberg_schema.find_field("datetime").field_id,
                     field_id=1000,
                     transform=MonthTransform(),
                     name="datetime_month",
                 )
-            ),
+            )
+
+        return self.catalog.create_table(
+            identifier=f"{self.namespace}.{collection_id}",
+            schema=iceberg_schema,
+            partition_spec=partition_spec,
+            sort_order=sort_order,
         )
 
     def load_items(

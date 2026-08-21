@@ -5,7 +5,7 @@ import pytest
 from arro3.core import Schema
 from pydantic import ValidationError
 
-from icestac.schema import IcestacItem, get_schema_from_items
+from icestac.schema import IcestacItem, convert_schema, get_schema_from_items
 
 
 def test_get_schema_from_items(sample_stac_item: dict[str, Any]) -> None:
@@ -41,6 +41,36 @@ def test_validate_schema_valid(sample_stac_item: dict[str, Any]) -> None:
 
     # Should not raise
     IcestacItem.validate_schema(schema)
+
+
+def test_convert_schema_prepares_item_schema(
+    sample_stac_item: dict[str, Any],
+) -> None:
+    """Test that conversion preserves item fields and assigns source IDs."""
+    iceberg_schema = convert_schema(get_schema_from_items(sample_stac_item))
+
+    assert iceberg_schema.find_field("title").field_id > 0
+    assert iceberg_schema.find_field("id").required
+    assert str(iceberg_schema.find_field("geometry").field_type) == "binary"
+
+
+def test_convert_schema_validates_required_fields() -> None:
+    """Test that conversion rejects an Arrow schema missing STAC fields."""
+    with pytest.raises(ValueError, match="missing required STAC fields.*'id'"):
+        convert_schema(pa.schema([("type", pa.string())]))
+
+
+def test_validate_prepared_schema_missing_required_field(
+    sample_stac_item: dict[str, Any],
+) -> None:
+    """Test that required-field validation accepts prepared Iceberg schemas."""
+    iceberg_schema = convert_schema(get_schema_from_items(sample_stac_item))
+    missing_id = type(iceberg_schema)(
+        *(field for field in iceberg_schema.fields if field.name != "id")
+    )
+
+    with pytest.raises(ValueError, match="missing required STAC fields.*'id'"):
+        IcestacItem.validate_schema(missing_id)
 
 
 def test_validate_schema_missing_required_field() -> None:

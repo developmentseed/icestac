@@ -13,7 +13,7 @@ The library is split into three pieces:
 This is an early foundation, not a released storage specification. Current boundaries are intentional:
 
 - A table name matches its items' collection ID. Periods are unsupported because Iceberg uses them as namespace delimiters; `icestac` does not silently rewrite IDs.
-- Tables are partitioned by `datetime` month. Other temporal or spatial layouts are deferred until there are concrete query patterns.
+- Tables default to partitioning by `datetime` month, but callers can replace that layout with native PyIceberg partition and sort objects. Built-in spatial layouts remain deferred until there are concrete query patterns.
 - Table schemas do not evolve automatically. Loading a new shape fails until the Iceberg schema is updated separately.
 - Geometry is stored as WKB, but PyIceberg does not currently emit the GeoParquet and STAC GeoParquet file metadata required to claim compliance with those specifications.
 
@@ -72,13 +72,67 @@ The source collection ID, `HLSS30_2.0`, contains a period and cannot be used unc
 The core API remains explicit:
 
 ```python
+from pyiceberg.catalog import load_catalog
+
+from icestac.catalog import IcestacCatalog
+from icestac.schema import convert_schema, get_schema_from_items
+
 catalog = IcestacCatalog(catalog=load_catalog())
-schema = get_schema_from_items(items)
-catalog.create_item_table(collection_id=collection_id, arrow_schema=schema)
+arrow_schema = get_schema_from_items(items)
+iceberg_schema = convert_schema(arrow_schema)
+catalog.create_item_table(collection_id=collection_id, iceberg_schema=iceberg_schema)
 catalog.load_items(collection_id=collection_id, items=items)
 ```
 
-`get_schema_from_items(...)` accepts one STAC dictionary, a list of dictionaries, or an `arro3.core.Table`. `load_items(...)` accepts the same inputs, checks that every row belongs to the target collection, and upserts on STAC `id` by default.
+`get_schema_from_items(...)` accepts one STAC dictionary, a list of dictionaries, or an `arro3.core.Table`. `convert_schema(...)` validates the item schema and returns the Iceberg schema with the field IDs used to configure table layout. `load_items(...)` accepts the same item inputs, checks that every row belongs to the target collection, and upserts on STAC `id` by default.
+
+Omitting layout configuration creates the monthly `datetime` partition and no sort order. To use a custom layout, build native PyIceberg objects from the prepared schema:
+
+```python
+from pyiceberg.partitioning import PartitionField, PartitionSpec
+from pyiceberg.table.sorting import SortField, SortOrder
+from pyiceberg.transforms import IdentityTransform
+
+source_id = iceberg_schema.find_field("title").field_id
+catalog.create_item_table(
+    collection_id=collection_id,
+    iceberg_schema=iceberg_schema,
+    partition_spec=PartitionSpec(
+        PartitionField(
+            source_id=source_id,
+            field_id=1000,
+            transform=IdentityTransform(),
+            name="title",
+        )
+    ),
+    sort_order=SortOrder(SortField(source_id=source_id)),
+)
+```
+
+A supplied partition specification replaces the monthly default; pass `PartitionSpec()` for an unpartitioned table. Sorting is optional. PyIceberg validates partition and sort references, so build both against the same prepared schema passed to `create_item_table(...)`.
+
+STAC interval items can have a null `datetime` when they include `start_datetime` and `end_datetime`. PyIceberg writes these items to the valid `datetime_month=null` partition. For a collection of interval items, override the default to partition by the start month:
+
+```python
+from pyiceberg.partitioning import PartitionField, PartitionSpec
+from pyiceberg.transforms import MonthTransform
+
+start_datetime_id = iceberg_schema.find_field("start_datetime").field_id
+catalog.create_item_table(
+    collection_id=collection_id,
+    iceberg_schema=iceberg_schema,
+    partition_spec=PartitionSpec(
+        PartitionField(
+            source_id=start_datetime_id,
+            field_id=1000,
+            transform=MonthTransform(),
+            name="start_datetime_month",
+        )
+    ),
+)
+```
+
+Iceberg partition transforms use one source field, so mixed point and interval collections need a derived timestamp column to support a per-row fallback.
 
 **4. Query with DuckDB:**
 

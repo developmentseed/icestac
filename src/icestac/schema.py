@@ -59,27 +59,16 @@ class IcestacItem(Item):
         return ArrowSchema(fields=fields, metadata=schema.metadata)
 
     @classmethod
-    def validate_schema(cls, schema: ArrowSchema) -> None:
-        """
-        Validate that an Arrow schema contains required STAC item fields.
-
-        Checks for top-level required fields from IcestacItem.
-        Note: rustac flattens nested properties, so 'properties.datetime'
-        becomes 'datetime' in the Arrow schema.
-
-        Args:
-            schema: arro3.core.Schema to validate
-
-        Raises:
-            ValueError: If required STAC fields are missing from the schema
-        """
-        schema_fields = set(schema.names)
-        required_fields = cls.get_required_fields()
-        missing_fields = required_fields - schema_fields
+    def validate_schema(cls, schema: ArrowSchema | IcebergSchema) -> None:
+        """Validate that a schema contains the required STAC item fields."""
+        schema_fields = set(
+            schema.column_names if isinstance(schema, IcebergSchema) else schema.names
+        )
+        missing_fields = cls.get_required_fields() - schema_fields
 
         if missing_fields:
             raise ValueError(
-                f"Arrow schema is missing required STAC fields: {sorted(missing_fields)}"
+                f"Schema is missing required STAC fields: {sorted(missing_fields)}"
             )
 
 
@@ -113,7 +102,8 @@ def get_schema_from_items(items: ItemsInput) -> ArrowSchema:
 
 
 def convert_schema(schema: ArrowSchema) -> IcebergSchema:
-    """Convert an Arrow schema to an Iceberg schema with field IDs."""
+    """Validate and convert an Arrow item schema to Iceberg with field IDs."""
+    IcestacItem.validate_schema(schema)
     _schema = _pyarrow_to_schema_without_ids(
         pa.schema(IcestacItem.enforce_required_fields(schema))
     )

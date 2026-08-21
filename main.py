@@ -9,7 +9,7 @@ from pyiceberg.exceptions import TableAlreadyExistsError
 from rustac import DuckdbClient
 
 from icestac.catalog import IcestacCatalog
-from icestac.schema import get_schema_from_items
+from icestac.schema import convert_schema, get_schema_from_items
 
 logger = logging.getLogger("icestac-demo")
 
@@ -46,12 +46,12 @@ async def run() -> None:
     collection_id = "HLSS30_2_0"
     table_exists = False
 
-    for month in ["1", "2", "3", "4"]:
+    for month in range(1, 9, 1):
         logger.info("processing 2026-%s", month)
         stac_geoparquet_path = HLS_STAC_GEOPARQUET_PATH_FMT.format(
             collection=source_collection_id,
             year="2026",
-            month=month,
+            month=str(month),
         )
 
         try:
@@ -81,12 +81,13 @@ async def run() -> None:
                 ),
             )
         )
-        schema = get_schema_from_items(items)
+        arrow_schema = get_schema_from_items(items)
 
         if not table_exists:
             try:
                 catalog.create_item_table(
-                    arrow_schema=schema, collection_id=collection_id
+                    iceberg_schema=convert_schema(arrow_schema),
+                    collection_id=collection_id,
                 )
             except TableAlreadyExistsError:
                 logger.warning("%s table already exists; using it", collection_id)
