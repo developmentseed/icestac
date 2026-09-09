@@ -1,69 +1,70 @@
-from types import NoneType
-from typing import Any, cast, get_args
-
 import pyarrow as pa
-import rustac
 from arro3.core import Schema as ArrowSchema
 from arro3.core import Table as ArrowTable
 from pyiceberg.io.pyarrow import _pyarrow_to_schema_without_ids
 from pyiceberg.schema import Schema as IcebergSchema
-from pyiceberg.types import NestedField
-from stac_pydantic.item import Item
+from pyiceberg.schema import assign_fresh_schema_ids
+from pyiceberg.types import (
+    BinaryType,
+    ListType,
+    StringType,
+    StructType,
+    TimestampType,
+    TimestamptzType,
+)
 
-ItemsInput = ArrowTable | list[dict[str, Any]] | dict[str, Any]
+ItemsInput = pa.Table | ArrowTable
+LINK_TYPE = pa.list_(
+    pa.struct(
+        [
+            pa.field("href", pa.string(), nullable=False),
+            pa.field("rel", pa.string(), nullable=False),
+            pa.field("type", pa.string()),
+            pa.field("title", pa.string()),
+        ]
+    )
+)
+EMPTY_ITEMS_ERROR = "Cannot infer or load a schema from an empty Arrow table"
 
 
-class IcestacItem(Item):
-    collection: str
+class IcestacItem:
+    """Structural fields required by the flattened STAC representation."""
 
     @classmethod
     def get_required_fields(cls) -> set[str]:
-        """
-        Get the set of required field names from IcestacItem.
-
-        Returns:
-            Set of required field names, with special handling for flattened properties
-        """
-        required_fields = set()
-
-        for field_name, field_info in cls.model_fields.items():
-            if field_info.is_required():
-                required_fields.add(field_name)
-
-        # Special handling: rustac flattens properties.datetime to just "datetime"
-        if "properties" in required_fields:
-            required_fields.remove("properties")
-            required_fields.add("datetime")
-
-        return required_fields
+        """Return required top-level fields, including flattened datetime."""
+        return {"geometry", "type", "id", "datetime", "links", "collection", "assets"}
 
     @classmethod
     def get_non_nullable_fields(cls) -> set[str]:
-        """Get STAC fields whose values cannot be null."""
-        fields = {
-            name
-            for name, info in cls.model_fields.items()
-            if info.is_required() and NoneType not in get_args(info.annotation)
-        }
-        fields.discard("properties")
-        return fields
+        """Return required fields that cannot contain null values."""
+        return {"type", "id", "links", "collection", "assets"}
 
     @classmethod
     def enforce_required_fields(cls, schema: ArrowSchema) -> ArrowSchema:
-        """Mark non-null STAC fields as non-nullable without losing metadata."""
+        """Make required fields non-null and give empty links a concrete type."""
         non_nullable_fields = cls.get_non_nullable_fields()
-        fields = [
-            field.with_nullable(False) if field.name in non_nullable_fields else field
-            for field in schema
-        ]
-        return ArrowSchema(fields=fields, metadata=schema.metadata)
+        arrow_schema = pa.schema(schema)
+        fields = []
+        for field in arrow_schema:
+            if field.name in non_nullable_fields:
+                field = field.with_nullable(False)
+            if (
+                field.name == "links"
+                and pa.types.is_list(field.type)
+                and pa.types.is_null(field.type.value_type)
+            ):
+                field = field.with_type(LINK_TYPE)
+            fields.append(field)
+        return ArrowSchema.from_arrow(pa.schema(fields, metadata=arrow_schema.metadata))
 
     @classmethod
-    def validate_schema(cls, schema: ArrowSchema | IcebergSchema) -> None:
-        """Validate that a schema contains the required STAC item fields."""
-        schema_fields = set(
-            schema.column_names if isinstance(schema, IcebergSchema) else schema.names
-        )
+    def validate_schema(cls, schema: pa.Schema | ArrowSchema | IcebergSchema) -> None:
+        """Validate required fields and the types used by the STAC representation."""
+        if isinstance(schema, IcebergSchema):
+            schema_fields = set(schema.column_names)
+        else:
+            schema_fields = set(schema.names)
         missing_fields = cls.get_required_fields() - schema_fields
 
         if missing_fields:
@@ -71,41 +72,62 @@ class IcestacItem(Item):
                 f"Schema is missing required STAC fields: {sorted(missing_fields)}"
             )
 
+        if isinstance(schema, IcebergSchema):
+            fields = {field.name: field.field_type for field in schema.fields}
+            expected = {
+                "id": StringType,
+                "collection": StringType,
+                "geometry": BinaryType,
+                "datetime": (TimestampType, TimestamptzType),
+                "links": ListType,
+                "assets": StructType,
+            }
+            invalid = [
+                name
+                for name, field_type in expected.items()
+                if not isinstance(fields[name], field_type)
+            ]
+        else:
+            arrow_schema = pa.schema(schema)
+            invalid = []
+            for name, predicate in (
+                ("id", pa.types.is_string),
+                ("collection", pa.types.is_string),
+                ("geometry", pa.types.is_binary),
+                ("datetime", pa.types.is_timestamp),
+                ("links", pa.types.is_list),
+                ("assets", pa.types.is_struct),
+            ):
+                field_type = arrow_schema.field(name).type
+                if name in ("id", "collection") and pa.types.is_dictionary(field_type):
+                    field_type = field_type.value_type
+                if not predicate(field_type):
+                    invalid.append(name)
 
-def _first_item_from_arrow(items: ArrowTable) -> dict[str, Any]:
-    table = pa.table(items)
+        if invalid:
+            raise ValueError(
+                "Unsupported types for STAC fields: " + ", ".join(sorted(invalid))
+            )
 
+
+def prepare_arrow_table(items: ItemsInput) -> pa.Table:
+    """Check an Arrow table's structural schema and normalize required fields."""
+    if isinstance(items, ArrowTable):
+        table = pa.table(items)
+    elif isinstance(items, pa.Table):
+        table = items
+    else:
+        raise TypeError("items must be a pyarrow.Table or arro3.core.Table")
     if len(table) == 0:
-        raise ValueError("Cannot validate an empty Arrow table")
+        raise ValueError(EMPTY_ITEMS_ERROR)
 
-    feature_collection = rustac.from_arrow(table.slice(0, 1))
-
-    return feature_collection["features"][0]
+    IcestacItem.validate_schema(table.schema)
+    schema = IcestacItem.enforce_required_fields(ArrowSchema.from_arrow(table.schema))
+    return table.cast(pa.schema(schema))
 
 
 def get_schema_from_items(items: ItemsInput) -> IcebergSchema:
-    """Derive an Iceberg schema from STAC dictionaries or Arrow data."""
-    if isinstance(items, dict):
-        item = cast(dict[str, Any], items)
-        items = [item]
-    elif isinstance(items, list):
-        item = items[0]
-    elif isinstance(items, ArrowTable):
-        item = _first_item_from_arrow(items)
-
-    IcestacItem.model_validate(item)
-
-    if not isinstance(items, ArrowTable):
-        items = rustac.to_arrow(items)
-
-    schema = IcestacItem.enforce_required_fields(items.schema)
-    IcestacItem.validate_schema(schema)
-    schema_without_ids = _pyarrow_to_schema_without_ids(pa.schema(schema))
-
-    fields = []
-    for i, field in enumerate(schema_without_ids.fields, start=1):
-        field_dict = field.model_dump()
-        field_dict["id"] = i
-        fields.append(NestedField(**field_dict))
-
-    return IcebergSchema(*fields)
+    """Derive an Iceberg schema from a structurally valid Arrow table."""
+    arrow_table = prepare_arrow_table(items)
+    schema_without_ids = _pyarrow_to_schema_without_ids(arrow_table.schema)
+    return assign_fresh_schema_ids(schema_without_ids)

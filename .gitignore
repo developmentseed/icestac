@@ -14,7 +14,7 @@ coverage.xml
 minio-data/
 
 # dev docs
-dev-docs/plans/
-dev-docs/brainstorms/
+dev-docs/
 
 data/
+.worktrees/

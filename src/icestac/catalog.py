@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from pyiceberg.catalog import Catalog
 from pyiceberg.partitioning import PartitionField, PartitionSpec
 from pyiceberg.schema import Schema as IcebergSchema
-from pyiceberg.table import Table
+from pyiceberg.table import Table, TableProperties
 from pyiceberg.table.sorting import UNSORTED_SORT_ORDER, SortOrder
 from pyiceberg.transforms import MonthTransform
 
@@ -29,9 +29,6 @@ class IcestacCatalog:
     catalog: Catalog
     namespace: str = DEFAULT_NAMESPACE
 
-    def __post_init__(self) -> None:
-        self.catalog.create_namespace_if_not_exists(self.namespace)
-
     def create_item_table(
         self,
         collection_id: str,
@@ -42,6 +39,7 @@ class IcestacCatalog:
         """Create an Iceberg item table for a collection."""
         validate_collection_id(collection_id)
         IcestacItem.validate_schema(iceberg_schema)
+        self.catalog.create_namespace_if_not_exists(self.namespace)
 
         # TODO: check if collection record is present in collections table
 
@@ -60,6 +58,7 @@ class IcestacCatalog:
             schema=iceberg_schema,
             partition_spec=partition_spec,
             sort_order=sort_order,
+            properties={TableProperties.COMMIT_NUM_RETRIES: "0"},
         )
 
     def load_items(

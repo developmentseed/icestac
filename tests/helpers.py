@@ -1,16 +1,14 @@
-from typing import Any, cast
+from typing import Any
 
 import pyarrow as pa
 import rustac
-from arro3.core import Table as ArrowTable
-
-from icestac.schema import ItemsInput
 
 
-def items_to_list(items: ItemsInput) -> list[dict[str, Any]]:
-    if isinstance(items, dict):
-        item = cast(dict[str, Any], items)
-        return [item]
-    if isinstance(items, ArrowTable):
-        return rustac.from_arrow(pa.table(items))["features"]
-    return items
+def items_to_arrow(items: list[dict[str, Any]]) -> pa.Table:
+    """Convert test STAC fixtures to the public Arrow input format."""
+    return pa.table(rustac.to_arrow(items))
+
+
+def items_to_list(items: pa.Table) -> list[dict[str, Any]]:
+    """Reconstruct Arrow rows for test assertions."""
+    return rustac.from_arrow(items)["features"]

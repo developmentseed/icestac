@@ -3,13 +3,12 @@ import tempfile
 from pathlib import Path
 from typing import Any, Generator
 
+import pyarrow as pa
 import pytest
 import rustac
-from arro3.core import Table as ArrowTable
 from pyiceberg.catalog import load_catalog
 
 from icestac.catalog import IcestacCatalog
-from icestac.schema import ItemsInput
 
 
 @pytest.fixture
@@ -91,22 +90,11 @@ def sample_stac_items(sample_stac_item) -> list[dict[str, Any]]:
 
 
 @pytest.fixture
-def sample_stac_item_arrow_table(sample_stac_items) -> ArrowTable:
-    return rustac.to_arrow(sample_stac_items)
+def sample_stac_item_arrow_table(sample_stac_items) -> pa.Table:
+    return pa.table(rustac.to_arrow(sample_stac_items))
 
 
 @pytest.fixture
-def sample_item_arrow_table(sample_stac_item_arrow_table: ArrowTable) -> ArrowTable:
-    """Backward-compatible alias for the Arrow-backed STAC items fixture."""
+def items(sample_stac_item_arrow_table: pa.Table) -> pa.Table:
+    """Provide a batch in the public Arrow ingestion format."""
     return sample_stac_item_arrow_table
-
-
-@pytest.fixture(
-    params=[
-        pytest.param("sample_stac_item", id="single-item"),
-        pytest.param("sample_stac_items", id="item-list"),
-        pytest.param("sample_stac_item_arrow_table", id="arrow-table"),
-    ]
-)
-def items(request) -> ItemsInput:
-    return request.getfixturevalue(request.param)
