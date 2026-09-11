@@ -1,0 +1,2 @@
+DEFAULT_NAMESPACE = "icestac"
+COLLECTIONS_TABLE_NAME = "collections"

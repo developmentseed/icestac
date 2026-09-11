@@ -1,0 +1,9 @@
+catalog:
+  default:
+    type: rest
+    uri: http://localhost:8181
+    warehouse: s3://warehouse/
+    s3.endpoint: http://localhost:9000
+    s3.access-key-id: admin
+    s3.secret-access-key: password
+    s3.path-style-access: "true"
