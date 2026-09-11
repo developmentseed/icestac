@@ -6,9 +6,9 @@ from typing import Any, Generator
 import pyarrow as pa
 import pytest
 import rustac
-from pyiceberg.catalog import load_catalog
+from pyiceberg.catalog import Catalog, load_catalog
 
-from icestac.catalog import IcestacCatalog
+from icestac.constants import DEFAULT_NAMESPACE
 
 
 @pytest.fixture
@@ -19,7 +19,7 @@ def temp_warehouse():
 
 
 @pytest.fixture
-def test_catalog(temp_warehouse: Path) -> Generator[IcestacCatalog, None, None]:
+def test_catalog(temp_warehouse: Path) -> Generator[Catalog, None, None]:
     """Create a temporary SQL catalog for testing."""
     catalog = load_catalog(
         "test_catalog",
@@ -29,12 +29,11 @@ def test_catalog(temp_warehouse: Path) -> Generator[IcestacCatalog, None, None]:
             "warehouse": str(temp_warehouse),
         },
     )
-    icestac_catalog = IcestacCatalog(catalog=catalog)
-
-    yield icestac_catalog
+    catalog.create_namespace_if_not_exists(DEFAULT_NAMESPACE)
+    yield catalog
 
     gc.collect()
-    icestac_catalog.catalog.close()
+    catalog.close()
 
 
 @pytest.fixture

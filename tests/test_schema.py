@@ -4,7 +4,7 @@ from pyiceberg.schema import Schema
 from pyiceberg.types import ListType
 import rustac
 
-from icestac.schema import IcestacItem, get_schema_from_items
+from icestac.schema import get_schema_from_items, validate_schema
 
 
 def test_get_schema_from_items(items: pa.Table) -> None:
@@ -14,6 +14,7 @@ def test_get_schema_from_items(items: pa.Table) -> None:
     assert isinstance(schema, Schema)
     assert schema.find_field("title").field_id > 0
     assert schema.find_field("id").required
+    assert schema.identifier_field_ids == [schema.find_field("id").field_id]
     assert str(schema.find_field("geometry").field_type) == "binary"
 
     nested_paths = (
@@ -74,6 +75,14 @@ def test_get_schema_from_items_rejects_invalid_field_type(items: pa.Table) -> No
         get_schema_from_items(invalid)
 
 
+def test_get_schema_from_items_rejects_non_string_type(items: pa.Table) -> None:
+    index = items.schema.get_field_index("type")
+    invalid = items.set_column(index, "type", pa.array([1, 2, 3], type=pa.int64()))
+
+    with pytest.raises(ValueError, match="Unsupported types for STAC fields: type"):
+        get_schema_from_items(invalid)
+
+
 def test_get_schema_from_items_rejects_null_required_field(items: pa.Table) -> None:
     index = items.schema.get_field_index("id")
     invalid = items.set_column(
@@ -98,7 +107,7 @@ def test_get_schema_from_items_rejects_null_links(items: pa.Table) -> None:
 
 def test_validate_schema_valid(items: pa.Table) -> None:
     """A valid inferred schema passes structural validation."""
-    IcestacItem.validate_schema(get_schema_from_items(items))
+    validate_schema(get_schema_from_items(items))
 
 
 def test_validate_schema_missing_required_field() -> None:
@@ -112,7 +121,7 @@ def test_validate_schema_missing_required_field() -> None:
     )
 
     with pytest.raises(ValueError, match="missing required STAC fields.*'id'"):
-        IcestacItem.validate_schema(schema)
+        validate_schema(schema)
 
 
 def test_validate_schema_rejects_invalid_field_type() -> None:
@@ -129,4 +138,4 @@ def test_validate_schema_rejects_invalid_field_type() -> None:
     )
 
     with pytest.raises(ValueError, match="Unsupported types for STAC fields: id"):
-        IcestacItem.validate_schema(schema)
+        validate_schema(schema)

@@ -26,7 +26,7 @@ def test_demo_loads_cached_batches_and_can_rerun(
 ) -> None:
     """Load real Parquet through DuckDB and Iceberg, including schema evolution."""
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr(main, "load_catalog", lambda: test_catalog.catalog)
+    monkeypatch.setattr(main, "load_catalog", lambda: test_catalog)
     monkeypatch.setattr(main, "DuckdbClient", lambda: duckdb_client)
     for month in range(1, 9):
         batch = []
@@ -44,7 +44,7 @@ def test_demo_loads_cached_batches_and_can_rerun(
         )
         path.parent.mkdir(parents=True)
         pq.write_table(items_to_arrow(batch), path)
-        prepared = main.read_hls_items(duckdb_client, path, "HLSS30_2_0")
+        prepared = main.read_hls_items(duckdb_client, path)
         keys = prepared["hilbert_idx"].to_pylist()
         assert keys == sorted(keys)
         assert len(set(keys)) == 3
@@ -55,11 +55,14 @@ def test_demo_loads_cached_batches_and_can_rerun(
     asyncio.run(main.run())
     asyncio.run(main.run())
 
-    table = test_catalog.catalog.load_table(("icestac", "HLSS30_2_0"))
+    table = test_catalog.load_table(("icestac", "HLSS30_2.0"))
     result = table.scan().to_arrow()
     assert len(result) == 24
     assert len(result["id"].unique()) == 24
-    assert result["collection"].unique().to_pylist() == ["HLSS30_2_0"]
+    assert result["collection"].unique().to_pylist() == ["HLSS30_2.0"]
+    assert table.schema().identifier_field_ids == [
+        table.schema().find_field("id").field_id
+    ]
     assert result["new_field"].null_count == 15
     assert table.properties[TableProperties.PARQUET_ROW_GROUP_LIMIT] == "50000"
     assert (
@@ -91,4 +94,4 @@ def test_read_hls_items_rejects_invalid_batches(
     pq.write_table(items, path)
 
     with pytest.raises(ValueError, match="No items found|bbox coordinates"):
-        main.read_hls_items(duckdb_client, path, "test-collection")
+        main.read_hls_items(duckdb_client, path)
