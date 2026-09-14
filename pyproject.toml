@@ -23,6 +23,10 @@ dependencies = [
     "rustac[arrow]>=0.9.3",
 ]
 
+[project.urls]
+Documentation = "https://developmentseed.github.io/icestac/"
+Repository = "https://github.com/developmentseed/icestac"
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
@@ -33,18 +37,23 @@ deploy = [
 ]
 dev = [
     "obstore>=0.9.4",
-    "pre-commit>=4.5.1",
-    "pytest>=9.0.2",
+    "pre-commit>=4.6.0",
+    "pytest>=9.0.3",
     "pytest-cov>=7.0.0",
-    "ruff>=0.15.2",
+    "ruff>=0.15.12",
     "sqlalchemy>=2.0.46",
     "ty>=0.0.18",
+]
+docs = [
+    "mkdocs-material>=9.7.6",
+    "mkdocstrings[python]>=1.0.3",
 ]
 
 [tool.ty.rules]
 all = "error"
 
 [tool.pytest.ini_options]
+testpaths = ["tests"]
 addopts = [
     "-v",
     "--cov-config=pyproject.toml", 
@@ -55,4 +64,38 @@ filterwarnings = [
     "ignore::DeprecationWarning:pyiceberg.*",
     "ignore::pydantic.PydanticDeprecatedSince20",
     "ignore::DeprecationWarning:pydantic.*",
+]
+
+[tool.ruff.lint]
+select = ["ALL"]
+ignore = [
+    "COM812", # formatter handles trailing commas
+    "CPY001", # repository does not use file headers
+    "D203",   # incompatible with D211
+    "D213",   # incompatible with D212
+    "EM101",  # raw string in exception
+    "EM102",  # f-string in exception
+    "FIX002", # todo statements
+    "PYI051", # literal strings redundant with str in type union
+    "TD002",  # todo without author name
+    "TRY003", # define exceptions in the exception class
+]
+
+[tool.ruff.lint.per-file-ignores]
+"main.py" = ["ASYNC240", "D100", "S101"]
+"src/icestac/*.py" = ["D100", "FBT003", "PLW2901"]
+"tests/*" = [
+    "ANN001",  # annotation in function argument
+    "ANN201",  # return type annotation
+    "ANN202",  # private helper annotations in test patches
+    "ARG001",  # unused arguments in test patch callbacks
+    "B905",    # test fixture columns are intentionally paired
+    "D",       # docstring
+    "FBT001",  # boolean fixture parameter
+    "PLR2004", # Magic value used in comparison
+    "RUF043",  # pytest regex match strings
+    "S101",    # assert
+    "SLF001",  # private member access
+    "UP035",   # compatibility with the existing fixture imports
+    "PIE804",   # existing fixture kwargs are clear as written
 ]

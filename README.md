@@ -184,6 +184,17 @@ load_catalog().purge_table((DEFAULT_NAMESPACE, "HLSS30_2.0"))
 
 To remove only the catalog entry and keep the files, use `drop_table(...)` instead.
 
+## Documentation
+
+The API reference is published at [developmentseed.github.io/icestac](https://developmentseed.github.io/icestac/).
+Serve it locally with:
+
+```bash
+uv run --group docs mkdocs serve
+```
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup and release automation details.
+
 ## Tests
 
 ```bash

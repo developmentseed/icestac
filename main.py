@@ -13,8 +13,8 @@ from pyiceberg.transforms import MonthTransform
 from rustac import DuckdbClient
 
 from icestac.constants import DEFAULT_NAMESPACE
-from icestac.write import put_items
 from icestac.schema import get_schema_from_items
+from icestac.write import put_items
 
 logger = logging.getLogger("icestac-demo")
 
@@ -53,7 +53,7 @@ def read_hls_items(client: DuckdbClient, path: Path) -> pa.Table:
 
 
 async def run() -> None:
-    """Load January–August 2026 HLS items into the local Iceberg catalog."""
+    """Load January-August 2026 HLS items into the local Iceberg catalog."""
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s %(levelname)s:%(name)s:%(message)s",

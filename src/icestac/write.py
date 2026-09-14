@@ -1,4 +1,5 @@
 import warnings
+
 from pyiceberg.table import Table, TableProperties
 from pyiceberg.table.upsert_util import create_match_filter, has_duplicate_rows
 
@@ -19,7 +20,6 @@ def put_items(
     the match against refreshed table state. Commit failures are propagated;
     an unknown commit outcome requires caller reconciliation before retrying.
     """
-
     arrow_table = prepare_arrow_table(items)
     expected_collection_id = table.name()[-1]
     if expected_collection_id == COLLECTIONS_TABLE_NAME:

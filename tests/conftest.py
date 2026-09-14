@@ -1,7 +1,8 @@
 import gc
 import tempfile
+from collections.abc import Generator
 from pathlib import Path
-from typing import Any, Generator
+from typing import Any
 
 import pyarrow as pa
 import pytest
@@ -23,11 +24,9 @@ def test_catalog(temp_warehouse: Path) -> Generator[Catalog, None, None]:
     """Create a temporary SQL catalog for testing."""
     catalog = load_catalog(
         "test_catalog",
-        **{
-            "type": "sql",
-            "uri": f"sqlite:///{temp_warehouse}/catalog.db",
-            "warehouse": str(temp_warehouse),
-        },
+        type="sql",
+        uri=f"sqlite:///{temp_warehouse}/catalog.db",
+        warehouse=str(temp_warehouse),
     )
     catalog.create_namespace_if_not_exists(DEFAULT_NAMESPACE)
     yield catalog
