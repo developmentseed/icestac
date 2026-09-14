@@ -1,8 +1,8 @@
 import pyarrow as pa
 import pytest
+import rustac
 from pyiceberg.schema import Schema
 from pyiceberg.types import ListType
-import rustac
 
 from icestac.schema import get_schema_from_items, validate_schema
 
